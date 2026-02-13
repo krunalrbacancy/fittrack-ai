@@ -248,11 +248,11 @@ export const Weight: React.FC = () => {
         {/* Modal */}
         {showModal && (
           <div className="fixed z-50 inset-0 overflow-y-auto">
-            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 md:pb-4 text-center sm:block sm:p-0">
+            <div className="flex items-end sm:items-center justify-center min-h-screen px-4 pt-4 pb-20 sm:pb-4 sm:pt-4">
               <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowModal(false)}></div>
-              <div className="inline-block align-bottom bg-white rounded-t-2xl sm:rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full w-full max-h-[85vh] md:max-h-[90vh] flex flex-col">
+              <div className="relative z-10 inline-block w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl text-left overflow-hidden shadow-xl transform transition-all max-h-[85vh] sm:max-h-[90vh] flex flex-col">
                 <form onSubmit={handleSubmit} className="flex flex-col max-h-[85vh] md:max-h-[90vh]">
-                  <div className="bg-white px-4 pt-6 pb-4 sm:p-6 sm:pb-4 overflow-y-auto flex-1">
+                  <div className="bg-white px-4 pt-6 pb-4 sm:px-8 sm:pt-8 sm:pb-6 overflow-y-auto flex-1">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-xl font-semibold text-gray-900">
                         {editingWeight ? 'Edit Weight Entry' : 'Add Weight Entry'}
@@ -303,7 +303,7 @@ export const Weight: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gray-50 px-4 py-4 sm:px-6 sm:flex sm:flex-row-reverse gap-3 flex-shrink-0 border-t">
+                  <div className="bg-gray-50 px-4 py-4 sm:px-8 sm:py-6 flex flex-col-reverse sm:flex-row-reverse gap-3 flex-shrink-0 border-t">
                     <button
                       type="submit"
                       className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-transparent shadow-sm px-6 py-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors touch-manipulation"
