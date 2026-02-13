@@ -1,5 +1,6 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { User, FoodEntry, WeightLog, WaterLog, WaterStats } from '../types';
+import { isTokenExpired } from './token';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -14,7 +15,30 @@ const api = axios.create({
 // Add response interceptor for better error handling
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  (error: AxiosError) => {
+    // Handle 401 Unauthorized (token expired or invalid)
+    if (error.response?.status === 401) {
+      // Clear invalid token
+      const token = localStorage.getItem('token');
+      if (token && isTokenExpired(token)) {
+        // Token is expired, clear it
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Redirect to login if not already there
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      } else {
+        // Token might be invalid for other reasons, clear it anyway
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+    }
+    
     if (error.code === 'ECONNREFUSED' || error.message === 'Network Error') {
       error.message = 'Cannot connect to server. Please ensure the backend is running.';
     }
@@ -22,10 +46,25 @@ api.interceptors.response.use(
   }
 );
 
-// Add token to requests
+// Add token to requests and check expiration
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
+    // Check if token is expired before making request
+    if (isTokenExpired(token)) {
+      // Token expired, clear it
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Redirect to login if not already there
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+      
+      // Cancel the request
+      return Promise.reject(new Error('Token expired'));
+    }
+    
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

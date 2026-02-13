@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { foodAPI } from '../utils/api';
 import { FoodEntry } from '../types';
 import { Layout } from '../components/Layout';
 import { getTodayDate, formatDate } from '../utils/calculations';
+import { getNutritionData } from '../utils/nutrition';
 
 export const Foods: React.FC = () => {
   const [foods, setFoods] = useState<FoodEntry[]>([]);
@@ -10,6 +11,10 @@ export const Foods: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(getTodayDate());
   const [showModal, setShowModal] = useState(false);
   const [editingFood, setEditingFood] = useState<FoodEntry | null>(null);
+  const [nutritionLoading, setNutritionLoading] = useState(false);
+  const [nutritionError, setNutritionError] = useState<string | null>(null);
+  const [manualEntry, setManualEntry] = useState(false);
+  const nutritionTimeoutRef = useRef<number | null>(null);
   const [formData, setFormData] = useState({
     foodName: '',
     protein: '',
@@ -23,6 +28,60 @@ export const Foods: React.FC = () => {
   useEffect(() => {
     loadFoods();
   }, [selectedDate]);
+
+  // Auto-fill nutrition data when food name changes (debounced)
+  useEffect(() => {
+    // Only lookup if not editing, not in manual mode, and food name is not empty
+    if (editingFood || manualEntry || !formData.foodName.trim() || !showModal) {
+      return;
+    }
+
+    // Clear previous timeout
+    if (nutritionTimeoutRef.current) {
+      clearTimeout(nutritionTimeoutRef.current);
+    }
+
+    // Debounce the lookup by 800ms
+    nutritionTimeoutRef.current = window.setTimeout(async () => {
+      const foodName = formData.foodName.trim();
+      if (foodName.length < 2) {
+        return; // Don't search for very short inputs
+      }
+
+      setNutritionLoading(true);
+      setNutritionError(null);
+
+      try {
+        const nutritionData = await getNutritionData(foodName);
+        
+        if (nutritionData) {
+          // Auto-fill the form with nutrition data
+          setFormData(prev => ({
+            ...prev,
+            calories: nutritionData.calories.toString(),
+            protein: nutritionData.protein.toString(),
+            quantity: nutritionData.quantity.toString(),
+            // Update food name if API returned a better formatted name
+            foodName: nutritionData.foodName || prev.foodName,
+          }));
+        } else {
+          setNutritionError('Nutrition data not found. Please enter manually.');
+        }
+      } catch (error) {
+        console.error('Error fetching nutrition data:', error);
+        setNutritionError('Unable to fetch nutrition data. Please enter manually.');
+      } finally {
+        setNutritionLoading(false);
+      }
+    }, 800);
+
+    // Cleanup timeout on unmount or when dependencies change
+    return () => {
+      if (nutritionTimeoutRef.current) {
+        clearTimeout(nutritionTimeoutRef.current);
+      }
+    };
+  }, [formData.foodName, editingFood, showModal, manualEntry]);
 
   const loadFoods = async () => {
     try {
@@ -78,6 +137,9 @@ export const Foods: React.FC = () => {
       category: food.category || 'lunch',
       dayType: food.dayType || 'normal',
     });
+    setNutritionLoading(false);
+    setNutritionError(null);
+    setManualEntry(true); // Enable manual mode when editing
     setShowModal(true);
   };
 
@@ -102,6 +164,9 @@ export const Foods: React.FC = () => {
       category: 'lunch',
       dayType: 'normal',
     });
+    setNutritionLoading(false);
+    setNutritionError(null);
+    setManualEntry(false);
   };
 
   const openModal = () => {
@@ -272,9 +337,9 @@ export const Foods: React.FC = () => {
       {/* Modal */}
       {showModal && (
         <div className="fixed z-50 inset-0 overflow-y-auto">
-            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 md:pb-4 text-center sm:block sm:p-0">
+            <div className="flex items-end sm:items-center justify-center min-h-screen px-4 pt-4 pb-20 sm:pb-4 sm:pt-4">
               <div className="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onClick={() => setShowModal(false)}></div>
-              <div className="inline-block align-bottom bg-white rounded-t-2xl sm:rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full w-full max-h-[85vh] md:max-h-[90vh] flex flex-col">
+              <div className="relative z-10 inline-block w-full sm:w-auto sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all max-h-[85vh] sm:max-h-[90vh] flex flex-col">
                 <form onSubmit={handleSubmit} className="flex flex-col max-h-[85vh] md:max-h-[90vh]">
                   <div className="bg-white px-4 pt-6 pb-4 sm:p-6 sm:pb-4 overflow-y-auto flex-1">
                     <div className="flex items-center justify-between mb-6">
@@ -295,14 +360,55 @@ export const Foods: React.FC = () => {
                     </div>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">Food Name</label>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Food Name
+                            {nutritionLoading && !manualEntry && (
+                              <span className="ml-2 text-xs text-blue-600 flex items-center gap-1">
+                                <span className="animate-spin">⏳</span> Looking up nutrition...
+                              </span>
+                            )}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setManualEntry(!manualEntry);
+                              setNutritionError(null);
+                              if (!manualEntry) {
+                                // Clear auto-filled data when switching to manual
+                                setFormData(prev => ({
+                                  ...prev,
+                                  calories: '',
+                                  protein: '',
+                                }));
+                              }
+                            }}
+                            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                              manualEntry
+                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {manualEntry ? '✓ Manual Entry' : 'Auto-fill'}
+                          </button>
+                        </div>
                         <input
                           type="text"
                           required
+                          placeholder={manualEntry ? "Enter food name" : "e.g., 200g curd, 2 boiled eggs, roti, sabji"}
                           value={formData.foodName}
                           onChange={(e) => setFormData({ ...formData, foodName: e.target.value })}
                           className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
+                        {nutritionError && !manualEntry && (
+                          <p className="mt-1 text-xs text-amber-600">{nutritionError}</p>
+                        )}
+                        {!nutritionLoading && !nutritionError && !manualEntry && formData.foodName && formData.calories && (
+                          <p className="mt-1 text-xs text-green-600">✓ Nutrition data auto-filled</p>
+                        )}
+                        {manualEntry && (
+                          <p className="mt-1 text-xs text-gray-500">Manual entry mode - enter nutrition values manually</p>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -382,7 +488,7 @@ export const Foods: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gray-50 px-4 py-4 sm:px-6 sm:flex sm:flex-row-reverse gap-3 flex-shrink-0 border-t">
+                  <div className="bg-gray-50 px-4 py-4 sm:px-6 flex flex-col-reverse sm:flex-row-reverse gap-3 flex-shrink-0 border-t">
                     <button
                       type="submit"
                       className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-transparent shadow-sm px-6 py-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors touch-manipulation"
