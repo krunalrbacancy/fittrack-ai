@@ -15,6 +15,7 @@ export const Profile: React.FC = () => {
     dailyCalorieTarget: '2000',
     dailyProteinTarget: '150',
     fastingCalorieTarget: '500',
+    fastingProteinTarget: '50',
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -31,6 +32,7 @@ export const Profile: React.FC = () => {
         dailyCalorieTarget: user.dailyCalorieTarget?.toString() || '2000',
         dailyProteinTarget: user.dailyProteinTarget?.toString() || '150',
         fastingCalorieTarget: user.fastingCalorieTarget?.toString() || '500',
+        fastingProteinTarget: user.fastingProteinTarget?.toString() || '50',
       });
     }
   }, [user]);
@@ -51,6 +53,7 @@ export const Profile: React.FC = () => {
         dailyCalorieTarget: Number(formData.dailyCalorieTarget),
         dailyProteinTarget: Number(formData.dailyProteinTarget),
         fastingCalorieTarget: Number(formData.fastingCalorieTarget),
+        fastingProteinTarget: Number(formData.fastingProteinTarget),
       });
       setMessage('Profile updated successfully!');
       setTimeout(() => setMessage(''), 3000);
@@ -239,6 +242,19 @@ export const Profile: React.FC = () => {
                       className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">Calories allowed on fasting days</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Protein Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.fastingProteinTarget}
+                      onChange={(e) => setFormData({ ...formData, fastingProteinTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Protein target on fasting days</p>
                   </div>
                 </div>
 

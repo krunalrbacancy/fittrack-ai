@@ -107,7 +107,10 @@ export const Dashboard: React.FC = () => {
     ? (user?.fastingCalorieTarget || 500)
     : (user?.dailyCalorieTarget || 2000);
   
-  const proteinTarget = user?.dailyProteinTarget || 150;
+  // Calculate protein target based on dayType
+  const proteinTarget = dayType === 'fasting'
+    ? (user?.fastingProteinTarget || 50)
+    : (user?.dailyProteinTarget || 150);
   
   // Calculate recommended water: currentWeight × 35 ml
   const recommendedWater = user?.currentWeight ? Math.round(user.currentWeight * 35) : 2000;
