@@ -11,6 +11,7 @@ export interface User {
   dailyCalorieTarget: number;
   dailyProteinTarget: number;
   fastingCalorieTarget?: number;
+  fastingProteinTarget?: number;
 }
 
 export interface FoodEntry {

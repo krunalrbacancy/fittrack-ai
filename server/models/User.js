@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema({
   fastingCalorieTarget: {
     type: Number,
     default: 500
+  },
+  fastingProteinTarget: {
+    type: Number, // in grams
+    default: 70
   }
 }, {
   timestamps: true

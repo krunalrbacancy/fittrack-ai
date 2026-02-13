@@ -34,7 +34,8 @@ router.put('/profile', async (req, res) => {
       goal,
       dailyCalorieTarget,
       dailyProteinTarget,
-      fastingCalorieTarget
+      fastingCalorieTarget,
+      fastingProteinTarget
     } = req.body;
 
     const user = await User.findByIdAndUpdate(
@@ -48,7 +49,8 @@ router.put('/profile', async (req, res) => {
         goal,
         dailyCalorieTarget,
         dailyProteinTarget,
-        fastingCalorieTarget
+        fastingCalorieTarget,
+        fastingProteinTarget
       },
       { new: true, runValidators: true }
     ).select('-password');
