@@ -8,21 +8,6 @@ interface NutritionData {
   foodName: string;
 }
 
-// USDA FoodData Central API response structure
-interface USDAFood {
-  fdcId: number;
-  description: string;
-  foodNutrients: Array<{
-    nutrientId: number;
-    nutrient?: {
-      id: number;
-      name: string;
-    };
-    value?: number;
-    amount?: number;
-  }>;
-}
-
 /**
  * Parse food name to extract quantity and food name
  * Examples:
