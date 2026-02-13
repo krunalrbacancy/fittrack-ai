@@ -1,41 +1,42 @@
 # Nutrition API Setup Guide
 
-The FitTrack AI app includes automatic calorie and protein lookup functionality. When users enter food names like "2 boiled eggs" or "1 banana", the system automatically fetches nutrition data.
+The FitTrack AI app includes automatic calorie and protein lookup functionality. When users enter food names like "2 boiled eggs", "200g curd", or "roti", the system automatically fetches nutrition data.
 
 ## How It Works
 
 1. **Food Name Parsing**: The system automatically extracts quantity and food name from user input
    - Example: "2 boiled eggs" → quantity: 2, food name: "boiled eggs"
-   - Example: "1 banana" → quantity: 1, food name: "banana"
+   - Example: "200g curd" → weight: 200g, food name: "curd"
+   - Example: "roti" → quantity: 1, food name: "roti"
 
 2. **Nutrition Data Lookup**: 
-   - First tries to fetch from Edamam Food Database API (if configured)
+   - First tries to fetch from USDA FoodData Central API (free, works without key for limited requests)
    - Falls back to local database of common foods if API is not available
 
 3. **Auto-fill**: When nutrition data is found, calories and protein are automatically filled in
 
 ## Setup Options
 
-### Option 1: Use Edamam API (Recommended for Production)
+### Option 1: Use USDA FoodData Central API (Recommended - Free & No Signup Required)
 
-Edamam provides a free tier with 10,000 API calls per month.
+USDA FoodData Central is a free, government-maintained nutrition database. It works without an API key for limited requests, but you can get a free API key for higher limits.
 
 #### Steps:
 
-1. **Sign up for Edamam API**:
-   - Go to https://developer.edamam.com/
-   - Create a free account
-   - Navigate to "Food Database API"
-   - Create a new application
-   - Copy your `Application ID` and `Application Key`
+1. **Get Free API Key (Optional but Recommended)**:
+   - Go to https://api.data.gov/signup/
+   - Sign up for a free account
+   - You'll receive an API key via email
+   - Free tier: 1,000 requests per hour
 
-2. **Add Environment Variables**:
+2. **Add Environment Variable (Optional)**:
    
    Create or update `client/.env`:
    ```env
-   VITE_EDAMAM_APP_ID=your_app_id_here
-   VITE_EDAMAM_APP_KEY=your_app_key_here
+   VITE_USDA_API_KEY=your_api_key_here
    ```
+   
+   **Note**: The API works without a key for basic usage, but with a key you get higher rate limits.
 
 3. **Restart Development Server**:
    ```bash
@@ -82,14 +83,23 @@ const COMMON_FOODS: Record<string, { calories: number; protein: number }> = {
 
 - **Nutrition data not appearing?**
   - Check browser console for errors
-  - Verify Edamam API credentials if using API
-  - Try common foods from the local database (eggs, banana, etc.)
+  - USDA API works without key but has rate limits
+  - Try common foods from the local database (eggs, banana, curd, roti, etc.)
+  - Some foods may need more specific names (e.g., "chicken breast" instead of "chicken")
 
 - **API rate limits?**
-  - Edamam free tier: 10,000 calls/month
+  - USDA API without key: Limited requests per hour
+  - USDA API with key: 1,000 requests per hour (free tier)
   - The app automatically falls back to local database if API fails
 
 - **Want to disable auto-fill?**
-  - Simply don't configure Edamam API credentials
-  - The app will only use the local database
+  - Click the "Auto-fill" button in the food form to switch to "Manual Entry" mode
+  - Or simply don't configure USDA API key (will use local database)
+
+## Supported Food Formats
+
+- **Quantity-based**: "2 eggs", "1 banana", "3 roti"
+- **Weight-based**: "200g curd", "150g paneer", "100g rice"
+- **Simple names**: "roti", "sabji", "omelet", "curd"
+- **Indian foods**: curd, roti, sabji, paneer chilla, moong chilla, dal, rice, etc.
 

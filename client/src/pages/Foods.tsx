@@ -14,7 +14,7 @@ export const Foods: React.FC = () => {
   const [nutritionLoading, setNutritionLoading] = useState(false);
   const [nutritionError, setNutritionError] = useState<string | null>(null);
   const [manualEntry, setManualEntry] = useState(false);
-  const nutritionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const nutritionTimeoutRef = useRef<number | null>(null);
   const [formData, setFormData] = useState({
     foodName: '',
     protein: '',
@@ -42,7 +42,7 @@ export const Foods: React.FC = () => {
     }
 
     // Debounce the lookup by 800ms
-    nutritionTimeoutRef.current = setTimeout(async () => {
+    nutritionTimeoutRef.current = window.setTimeout(async () => {
       const foodName = formData.foodName.trim();
       if (foodName.length < 2) {
         return; // Don't search for very short inputs

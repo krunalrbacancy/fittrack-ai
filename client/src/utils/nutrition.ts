@@ -1,5 +1,5 @@
 // Nutrition API utility for fetching food nutrition data
-// Using Edamam Food Database API (free tier available)
+// Using USDA FoodData Central API (free, government-maintained database)
 
 interface NutritionData {
   calories: number;
@@ -8,18 +8,18 @@ interface NutritionData {
   foodName: string;
 }
 
-interface EdamamFood {
-  food: {
-    label: string;
-    nutrients: {
-      ENERC_KCAL: number; // Energy in kcal
-      PROCNT: number; // Protein in grams
+// USDA FoodData Central API response structure
+interface USDAFood {
+  fdcId: number;
+  description: string;
+  foodNutrients: Array<{
+    nutrientId: number;
+    nutrient?: {
+      id: number;
+      name: string;
     };
-    servingsPerContainer?: number;
-  };
-  measures?: Array<{
-    label: string;
-    weight: number;
+    value?: number;
+    amount?: number;
   }>;
 }
 
@@ -68,30 +68,29 @@ export function parseFoodInput(input: string): { quantity: number; foodName: str
 }
 
 /**
- * Fetch nutrition data from Edamam Food Database API
+ * Fetch nutrition data from USDA FoodData Central API
+ * Free API: https://fdc.nal.usda.gov/api-guide.html
  */
 export async function fetchNutritionData(
   foodName: string,
   quantity: number = 1
 ): Promise<NutritionData | null> {
   try {
-    // Use Edamam Food Database API
-    // Note: You'll need to get free API credentials from https://developer.edamam.com/
-    const APP_ID = import.meta.env.VITE_EDAMAM_APP_ID || '';
-    const APP_KEY = import.meta.env.VITE_EDAMAM_APP_KEY || '';
+    // Use USDA FoodData Central API (free, no signup required for basic usage)
+    // For production, get API key from https://api.data.gov/signup/
+    const API_KEY = import.meta.env.VITE_USDA_API_KEY || '';
     
-    if (!APP_ID || !APP_KEY) {
-      console.warn('Edamam API credentials not configured');
-      return null;
-    }
-    
-    const url = `https://api.edamam.com/api/food-database/v2/parser`;
+    // USDA API works without key for limited requests, but key is recommended
+    const url = `https://api.nal.usda.gov/fdc/v1/foods/search`;
     const params = new URLSearchParams({
-      app_id: APP_ID,
-      app_key: APP_KEY,
-      ingr: foodName,
-      'nutrition-type': 'cooking',
+      query: foodName,
+      pageSize: '5', // Get top 5 results
+      dataType: 'Foundation,SR Legacy', // Focus on common foods
     });
+    
+    if (API_KEY) {
+      params.append('api_key', API_KEY);
+    }
     
     const response = await fetch(`${url}?${params}`);
     
@@ -101,27 +100,43 @@ export async function fetchNutritionData(
     
     const data = await response.json();
     
-    if (data.hints && data.hints.length > 0) {
-      const food = data.hints[0].food as EdamamFood['food'];
-      const nutrients = food.nutrients;
+    if (data.foods && data.foods.length > 0) {
+      // Get the first (most relevant) result
+      const food = data.foods[0];
       
-      // Calculate nutrition for the specified quantity
-      // Edamam returns per 100g, so we need to adjust
-      // For simplicity, we'll use the first measure or default to 100g
-      const baseWeight = 100; // grams (default)
-      const multiplier = quantity; // Adjust based on quantity
+      // Extract nutrition data from foodNutrients array
+      // USDA returns nutrients in different format
+      let calories = 0;
+      let protein = 0;
+      
+      if (food.foodNutrients) {
+        food.foodNutrients.forEach((nutrient: any) => {
+          // Energy (kcal) - nutrient ID 1008
+          if (nutrient.nutrientId === 1008 || nutrient.nutrient?.id === 1008) {
+            calories = nutrient.value || nutrient.amount || 0;
+          }
+          // Protein - nutrient ID 1003
+          if (nutrient.nutrientId === 1003 || nutrient.nutrient?.id === 1003) {
+            protein = nutrient.value || nutrient.amount || 0;
+          }
+        });
+      }
+      
+      // USDA data is typically per 100g, so adjust for quantity
+      // If quantity represents servings (not grams), multiply accordingly
+      const multiplier = quantity;
       
       return {
-        calories: Math.round(nutrients.ENERC_KCAL * multiplier),
-        protein: Math.round(nutrients.PROCNT * multiplier * 10) / 10, // Round to 1 decimal
+        calories: Math.round(calories * multiplier),
+        protein: Math.round(protein * multiplier * 10) / 10, // Round to 1 decimal
         quantity,
-        foodName: food.label,
+        foodName: food.description || foodName,
       };
     }
     
     return null;
   } catch (error) {
-    console.error('Error fetching nutrition data:', error);
+    console.error('Error fetching nutrition data from USDA:', error);
     return null;
   }
 }
