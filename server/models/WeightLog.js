@@ -1,4 +1,4 @@
-image.pngimport mongoose from 'mongoose';
+import mongoose from 'mongoose';
 
 const weightLogSchema = new mongoose.Schema({
   userId: {
