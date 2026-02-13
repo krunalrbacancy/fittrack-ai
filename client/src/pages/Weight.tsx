@@ -42,7 +42,7 @@ export const Weight: React.FC = () => {
           weight: Number(formData.weight),
         });
       } else {
-        const newWeight = await weightAPI.create({
+        await weightAPI.create({
           ...formData,
           weight: Number(formData.weight),
         } as any);

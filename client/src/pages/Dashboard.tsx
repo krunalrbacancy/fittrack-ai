@@ -113,7 +113,6 @@ export const Dashboard: React.FC = () => {
   const recommendedWater = user?.currentWeight ? Math.round(user.currentWeight * 35) : 2000;
   
   const remainingCalories = Math.max(0, calorieTarget - stats.totalCalories);
-  const remainingProtein = Math.max(0, proteinTarget - stats.totalProtein);
   const remainingWater = Math.max(0, recommendedWater - waterStats.totalWater);
   
   const calorieExceeded = stats.totalCalories > calorieTarget;
