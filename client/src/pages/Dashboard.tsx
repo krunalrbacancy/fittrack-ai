@@ -1,20 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { foodAPI, waterAPI } from '../utils/api';
 import { DailyStats, FoodEntry, WaterStats } from '../types';
 import { getTodayDate } from '../utils/calculations';
 import { Layout } from '../components/Layout';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getFoodSuggestions } from '../utils/foodSuggestions';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DailyStats>({ totalCalories: 0, totalProtein: 0, foodCount: 0 });
+  const [stats, setStats] = useState<DailyStats>({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0, foodCount: 0 });
   const [waterStats, setWaterStats] = useState<WaterStats>({ totalWater: 0, logCount: 0 });
   const [foods, setFoods] = useState<FoodEntry[]>([]);
   const [weeklyStats, setWeeklyStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getTodayDate());
   const [manualWaterAmount, setManualWaterAmount] = useState('');
+  const [waterLoading, setWaterLoading] = useState(false);
+  const [waterAddingAmount, setWaterAddingAmount] = useState<number | null>(null);
+  const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
+  const [suggestionOffsets, setSuggestionOffsets] = useState({
+    breakfast: 0,
+    lunch: 0,
+    snacks: 0,
+    dinner: 0,
+  });
 
   useEffect(() => {
     loadData();
@@ -38,8 +48,12 @@ export const Dashboard: React.FC = () => {
     try {
       const data = await foodAPI.getStats(selectedDate);
       setStats(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load stats:', error);
+      // If error is 401 (unauthorized), set empty stats
+      if (error.response?.status === 401) {
+        setStats({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0, foodCount: 0 });
+      }
     }
   };
 
@@ -47,8 +61,12 @@ export const Dashboard: React.FC = () => {
     try {
       const data = await waterAPI.getStats(selectedDate);
       setWaterStats(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load water stats:', error);
+      // If error is 401 (unauthorized), set empty stats
+      if (error.response?.status === 401) {
+        setWaterStats({ totalWater: 0, logCount: 0 });
+      }
     }
   };
 
@@ -56,8 +74,12 @@ export const Dashboard: React.FC = () => {
     try {
       const data = await foodAPI.getAll(selectedDate);
       setFoods(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load foods:', error);
+      // If error is 401 (unauthorized), set empty array
+      if (error.response?.status === 401) {
+        setFoods([]);
+      }
     }
   };
 
@@ -76,6 +98,9 @@ export const Dashboard: React.FC = () => {
   };
 
   const addWater = async (amount: number) => {
+    if (waterLoading) return; // Prevent multiple clicks
+    setWaterLoading(true);
+    setWaterAddingAmount(amount);
     try {
       await waterAPI.create({
         amount,
@@ -85,11 +110,15 @@ export const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Failed to add water:', error);
       alert('Failed to add water');
+    } finally {
+      setWaterLoading(false);
+      setWaterAddingAmount(null);
     }
   };
 
   const handleManualWaterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (waterLoading) return; // Prevent multiple submissions
     const amount = Number(manualWaterAmount);
     if (amount > 0) {
       await addWater(amount);
@@ -103,24 +132,101 @@ export const Dashboard: React.FC = () => {
   const dayType = foods.length > 0 && foods.some(f => f.dayType === 'fasting') ? 'fasting' : 'normal';
 
   // Calculate calorie target based on dayType
-  const calorieTarget = dayType === 'fasting' 
-    ? (user?.fastingCalorieTarget || 500)
+  const calorieTarget = dayType === 'fasting'
+    ? (user?.fastingCalorieTarget || 1600)
     : (user?.dailyCalorieTarget || 2000);
-  
-  // Calculate protein target based on dayType
+
+  // Calculate nutrition targets based on dayType
   const proteinTarget = dayType === 'fasting'
-    ? (user?.fastingProteinTarget || 50)
-    : (user?.dailyProteinTarget || 150);
-  
+    ? (user?.fastingProteinTarget || 70)
+    : (user?.dailyProteinTarget || 90);
+
+  const carbsTarget = dayType === 'fasting'
+    ? (user?.fastingCarbsTarget || 170)
+    : (user?.dailyCarbsTarget || 240);
+
+  const fatsTarget = dayType === 'fasting'
+    ? (user?.fastingFatsTarget || 55)
+    : (user?.dailyFatsTarget || 60);
+
+  const fiberTarget = dayType === 'fasting'
+    ? (user?.fastingFiberTarget || 22)
+    : (user?.dailyFiberTarget || 28);
+
   // Calculate recommended water: currentWeight × 35 ml
   const recommendedWater = user?.currentWeight ? Math.round(user.currentWeight * 35) : 2000;
-  
+
   const remainingCalories = Math.max(0, calorieTarget - stats.totalCalories);
+  const remainingProtein = Math.max(0, proteinTarget - stats.totalProtein);
+  const remainingCarbs = Math.max(0, carbsTarget - (stats.totalCarbs || 0));
+  const remainingFats = Math.max(0, fatsTarget - (stats.totalFats || 0));
+  const remainingFiber = Math.max(0, fiberTarget - (stats.totalFiber || 0));
   const remainingWater = Math.max(0, recommendedWater - waterStats.totalWater);
-  
+
   const calorieExceeded = stats.totalCalories > calorieTarget;
   const proteinDeficit = stats.totalProtein < proteinTarget;
+  const carbsDeficit = (stats.totalCarbs || 0) < carbsTarget;
+  const fatsDeficit = (stats.totalFats || 0) < fatsTarget;
+  const fiberDeficit = (stats.totalFiber || 0) < fiberTarget;
   const waterDeficit = waterStats.totalWater < recommendedWater;
+
+  // Calculate food suggestions for each meal
+  const remainingNutrients = useMemo(() => ({
+    calories: remainingCalories,
+    protein: remainingProtein,
+    carbs: remainingCarbs,
+    fats: remainingFats,
+    fiber: remainingFiber,
+  }), [remainingCalories, remainingProtein, remainingCarbs, remainingFats, remainingFiber]);
+
+  const breakfastSuggestions = useMemo(() => getFoodSuggestions('breakfast', remainingNutrients, suggestionOffsets.breakfast), [remainingNutrients, suggestionOffsets.breakfast]);
+  const lunchSuggestions = useMemo(() => getFoodSuggestions('lunch', remainingNutrients, suggestionOffsets.lunch), [remainingNutrients, suggestionOffsets.lunch]);
+  const snacksSuggestions = useMemo(() => getFoodSuggestions('snacks', remainingNutrients, suggestionOffsets.snacks), [remainingNutrients, suggestionOffsets.snacks]);
+  const dinnerSuggestions = useMemo(() => getFoodSuggestions('dinner', remainingNutrients, suggestionOffsets.dinner), [remainingNutrients, suggestionOffsets.dinner]);
+
+  // Handle refresh suggestions
+  const handleRefreshSuggestions = (category: 'breakfast' | 'lunch' | 'snacks' | 'dinner') => {
+    setSuggestionOffsets(prev => ({
+      ...prev,
+      [category]: (prev[category] + 3) % 9, // Cycle through suggestions
+    }));
+  };
+
+  // Handle adding a food suggestion
+  const handleAddSuggestion = async (suggestion: any, category: string) => {
+    if (addingSuggestion) return; // Prevent multiple clicks
+    setAddingSuggestion(suggestion.name);
+
+    try {
+      // Parse quantity from suggestion
+      const quantityMatch = suggestion.quantity.match(/^(\d+(?:\.\d+)?)/);
+      const quantity = quantityMatch ? parseFloat(quantityMatch[1]) : 1;
+
+      await foodAPI.create({
+        foodName: suggestion.name,
+        calories: suggestion.calories,
+        protein: suggestion.protein,
+        carbs: suggestion.carbs,
+        fats: suggestion.fats,
+        fiber: suggestion.fiber,
+        quantity: suggestion.per100g ? quantity / 100 : quantity,
+        date: selectedDate,
+        category: category as any,
+        dayType: dayType,
+      } as any);
+
+      // Reload data
+      await Promise.all([
+        loadStats(),
+        loadFoods(),
+      ]);
+    } catch (error) {
+      console.error('Failed to add food suggestion:', error);
+      alert('Failed to add food. Please try again.');
+    } finally {
+      setAddingSuggestion(null);
+    }
+  };
 
   const caloriePercentage = Math.min(100, (stats.totalCalories / calorieTarget) * 100);
   const proteinPercentage = Math.min(100, (stats.totalProtein / proteinTarget) * 100);
@@ -191,7 +297,7 @@ export const Dashboard: React.FC = () => {
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <div className="bg-white overflow-hidden shadow-md rounded-xl">
             <div className="p-4 md:p-5">
               <div className="flex items-center">
@@ -256,6 +362,66 @@ export const Dashboard: React.FC = () => {
             <div className="p-4 md:p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
+                  <div className="text-2xl md:text-3xl">🍞</div>
+                </div>
+                <div className="ml-3 md:ml-5 flex-1 min-w-0">
+                  <dl>
+                    <dt className="text-xs md:text-sm font-medium text-gray-500 truncate">
+                      Carbs
+                    </dt>
+                    <dd className="text-base md:text-lg font-semibold text-gray-900 truncate">
+                      {(stats.totalCarbs || 0).toFixed(1)}g / {carbsTarget}g
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow-md rounded-xl">
+            <div className="p-4 md:p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="text-2xl md:text-3xl">🥑</div>
+                </div>
+                <div className="ml-3 md:ml-5 flex-1 min-w-0">
+                  <dl>
+                    <dt className="text-xs md:text-sm font-medium text-gray-500 truncate">
+                      Fats
+                    </dt>
+                    <dd className="text-base md:text-lg font-semibold text-gray-900 truncate">
+                      {(stats.totalFats || 0).toFixed(1)}g / {fatsTarget}g
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow-md rounded-xl">
+            <div className="p-4 md:p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="text-2xl md:text-3xl">🌾</div>
+                </div>
+                <div className="ml-3 md:ml-5 flex-1 min-w-0">
+                  <dl>
+                    <dt className="text-xs md:text-sm font-medium text-gray-500 truncate">
+                      Fiber
+                    </dt>
+                    <dd className="text-base md:text-lg font-semibold text-gray-900 truncate">
+                      {(stats.totalFiber || 0).toFixed(1)}g / {fiberTarget}g
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow-md rounded-xl">
+            <div className="p-4 md:p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
                   <div className="text-2xl md:text-3xl">📊</div>
                 </div>
                 <div className="ml-3 md:ml-5 flex-1 min-w-0">
@@ -277,15 +443,20 @@ export const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Calories Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6">
+            <div className="w-full bg-gray-200 rounded-full h-6 relative">
               <div
                 className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
                   calorieExceeded ? 'bg-red-500' : 'bg-green-500'
                 }`}
                 style={{ width: `${Math.min(100, caloriePercentage)}%` }}
               >
-                {caloriePercentage.toFixed(1)}%
+                {caloriePercentage >= 10 && caloriePercentage.toFixed(1)}%
               </div>
+              {caloriePercentage < 10 && (
+                <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                  {caloriePercentage.toFixed(1)}%
+                </div>
+              )}
             </div>
             <p className="mt-2 text-sm text-gray-600">
               {stats.totalCalories} of {calorieTarget} calories
@@ -294,15 +465,20 @@ export const Dashboard: React.FC = () => {
 
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Protein Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6">
+            <div className="w-full bg-gray-200 rounded-full h-6 relative">
               <div
                 className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
                   proteinDeficit ? 'bg-yellow-500' : 'bg-blue-500'
                 }`}
                 style={{ width: `${Math.min(100, proteinPercentage)}%` }}
               >
-                {proteinPercentage.toFixed(1)}%
+                {proteinPercentage >= 10 && proteinPercentage.toFixed(1)}%
               </div>
+              {proteinPercentage < 10 && (
+                <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                  {proteinPercentage.toFixed(1)}%
+                </div>
+              )}
             </div>
             <p className="mt-2 text-sm text-gray-600">
               {stats.totalProtein.toFixed(1)}g of {proteinTarget}g protein
@@ -310,16 +486,126 @@ export const Dashboard: React.FC = () => {
           </div>
 
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Carbs Progress</h3>
+            <div className="w-full bg-gray-200 rounded-full h-6 relative">
+              {(() => {
+                const carbsPercentage = carbsTarget > 0 ? ((stats.totalCarbs || 0) / carbsTarget) * 100 : 0;
+                const displayPercentage = Math.min(100, carbsPercentage);
+                return (
+                  <>
+                    {displayPercentage >= 10 ? (
+                      <div
+                        className="h-6 rounded-full flex items-center justify-center text-xs font-semibold bg-orange-500"
+                        style={{ width: `${displayPercentage}%` }}
+                      >
+                        {`${displayPercentage.toFixed(1)}%`}
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className="h-6 rounded-full bg-orange-500"
+                          style={{ width: `${displayPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                          {displayPercentage.toFixed(1)}%
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              {(stats.totalCarbs || 0).toFixed(1)}g of {carbsTarget}g carbs
+            </p>
+          </div>
+
+          <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Fats Progress</h3>
+            <div className="w-full bg-gray-200 rounded-full h-6 relative">
+              {(() => {
+                const fatsPercentage = fatsTarget > 0 ? ((stats.totalFats || 0) / fatsTarget) * 100 : 0;
+                const displayPercentage = Math.min(100, fatsPercentage);
+                return (
+                  <>
+                    {displayPercentage >= 10 ? (
+                      <div
+                        className="h-6 rounded-full flex items-center justify-center text-xs font-semibold bg-yellow-500"
+                        style={{ width: `${displayPercentage}%` }}
+                      >
+                        {`${displayPercentage.toFixed(1)}%`}
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className="h-6 rounded-full bg-yellow-500"
+                          style={{ width: `${displayPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                          {displayPercentage.toFixed(1)}%
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              {(stats.totalFats || 0).toFixed(1)}g of {fatsTarget}g fats
+            </p>
+          </div>
+
+          <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Fiber Progress</h3>
+            <div className="w-full bg-gray-200 rounded-full h-6 relative">
+              {(() => {
+                const fiberPercentage = fiberTarget > 0 ? ((stats.totalFiber || 0) / fiberTarget) * 100 : 0;
+                const displayPercentage = Math.min(100, fiberPercentage);
+                return (
+                  <>
+                    {displayPercentage >= 10 ? (
+                      <div
+                        className="h-6 rounded-full flex items-center justify-center text-xs font-semibold bg-green-500"
+                        style={{ width: `${displayPercentage}%` }}
+                      >
+                        {`${displayPercentage.toFixed(1)}%`}
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className="h-6 rounded-full bg-green-500"
+                          style={{ width: `${displayPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                          {displayPercentage.toFixed(1)}%
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              {(stats.totalFiber || 0).toFixed(1)}g of {fiberTarget}g fiber
+            </p>
+          </div>
+
+          <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Water Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6">
+            <div className="w-full bg-gray-200 rounded-full h-6 relative">
               <div
                 className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
                   waterDeficit ? 'bg-cyan-500' : 'bg-blue-600'
                 }`}
                 style={{ width: `${Math.min(100, waterPercentage)}%` }}
               >
-                {waterPercentage.toFixed(1)}%
+                {waterPercentage >= 10 && waterPercentage.toFixed(1)}%
               </div>
+              {waterPercentage < 10 && (
+                <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                  {waterPercentage.toFixed(1)}%
+                </div>
+              )}
             </div>
             <p className="mt-2 text-sm text-gray-600">
               {waterStats.totalWater}ml of {recommendedWater}ml water
@@ -335,21 +621,24 @@ export const Dashboard: React.FC = () => {
               <span className="text-sm text-gray-600 w-full sm:w-auto mb-2 sm:mb-0">Quick add:</span>
               <button
                 onClick={() => addWater(200)}
-                className="flex-1 sm:flex-none px-4 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 active:bg-blue-300 text-sm font-medium transition-colors touch-manipulation"
+                disabled={waterLoading}
+                className="flex-1 sm:flex-none px-4 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 active:bg-blue-300 text-sm font-medium transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                +200ml
+                {waterLoading && waterAddingAmount === 200 ? 'Adding...' : '+200ml'}
               </button>
               <button
                 onClick={() => addWater(250)}
-                className="flex-1 sm:flex-none px-4 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 active:bg-blue-300 text-sm font-medium transition-colors touch-manipulation"
+                disabled={waterLoading}
+                className="flex-1 sm:flex-none px-4 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 active:bg-blue-300 text-sm font-medium transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                +250ml
+                {waterLoading && waterAddingAmount === 250 ? 'Adding...' : '+250ml'}
               </button>
               <button
                 onClick={() => addWater(500)}
-                className="flex-1 sm:flex-none px-4 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 active:bg-blue-300 text-sm font-medium transition-colors touch-manipulation"
+                disabled={waterLoading}
+                className="flex-1 sm:flex-none px-4 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 active:bg-blue-300 text-sm font-medium transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                +500ml
+                {waterLoading && waterAddingAmount === 500 ? 'Adding...' : '+500ml'}
               </button>
             </div>
             <div className="text-sm text-gray-600 text-center sm:text-left">
@@ -374,12 +663,159 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-end">
                   <button
                     type="submit"
-                    className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:bg-blue-800 text-base font-medium transition-colors touch-manipulation"
+                    disabled={waterLoading}
+                    className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:bg-blue-800 text-base font-medium transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Add
+                    {waterLoading ? 'Adding...' : 'Add'}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+
+        {/* Food Suggestions */}
+        <div className="mb-6 md:mb-8">
+          <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Meal Suggestions</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Breakfast Suggestions */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>🌅</span>
+                  <span>Breakfast</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('breakfast')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-yellow-100 active:bg-yellow-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {breakfastSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'breakfast')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-yellow-100 active:bg-yellow-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Lunch Suggestions */}
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>☀️</span>
+                  <span>Lunch</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('lunch')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-orange-100 active:bg-orange-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {lunchSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'lunch')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-orange-100 active:bg-orange-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Snacks Suggestions */}
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>🍪</span>
+                  <span>Snacks</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('snacks')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-purple-100 active:bg-purple-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {snacksSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'snacks')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-purple-100 active:bg-purple-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dinner Suggestions */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>🌙</span>
+                  <span>Dinner</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('dinner')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {dinnerSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'dinner')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

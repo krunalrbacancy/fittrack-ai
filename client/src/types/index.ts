@@ -10,8 +10,14 @@ export interface User {
   goal: string;
   dailyCalorieTarget: number;
   dailyProteinTarget: number;
+  dailyCarbsTarget?: number;
+  dailyFatsTarget?: number;
+  dailyFiberTarget?: number;
   fastingCalorieTarget?: number;
   fastingProteinTarget?: number;
+  fastingCarbsTarget?: number;
+  fastingFatsTarget?: number;
+  fastingFiberTarget?: number;
 }
 
 export interface FoodEntry {
@@ -19,6 +25,9 @@ export interface FoodEntry {
   foodName: string;
   protein: number;
   calories: number;
+  carbs?: number;
+  fats?: number;
+  fiber?: number;
   quantity: number;
   date: string;
   category?: 'breakfast' | 'lunch' | 'snacks' | 'dinner';
@@ -37,6 +46,9 @@ export interface WeightLog {
 export interface DailyStats {
   totalCalories: number;
   totalProtein: number;
+  totalCarbs?: number;
+  totalFats?: number;
+  totalFiber?: number;
   foodCount: number;
 }
 
@@ -44,6 +56,9 @@ export interface WeeklyStats {
   [date: string]: {
     calories: number;
     protein: number;
+    carbs?: number;
+    fats?: number;
+    fiber?: number;
   };
 }
 

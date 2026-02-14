@@ -19,56 +19,64 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const initAuth = async () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:21',message:'initAuth called',data:{},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       try {
         const token = localStorage.getItem('token');
         const storedUser = authAPI.getStoredUser();
-        
-        // Check if token exists and is valid
-        if (token && storedUser && isTokenValid(token)) {
-          try {
-            // Verify token is still valid by fetching user profile
-            const userData = await userAPI.getProfile();
-            setUser(userData);
-            // Update stored user data in case it changed
-            localStorage.setItem('user', JSON.stringify(userData));
-          } catch (error: any) {
-            // If API call fails (401, network error, etc.), clear auth
-            console.error('Failed to verify token:', error);
-            authAPI.logout();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:25',message:'initAuth token check',data:{hasToken:!!token,hasStoredUser:!!storedUser,isTokenValid:token ? isTokenValid(token) : false},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+
+        // Always try to fetch user profile (backend supports optionalAuth)
+        // This ensures we get the latest data even without a token
+        try {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:32',message:'Fetching user profile',data:{},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          const userData = await userAPI.getProfile();
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:35',message:'User profile fetched',data:{userId:userData?._id,hasName:!!userData?.name,hasCarbs:!!userData?.dailyCarbsTarget},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          setUser(userData);
+          // Update stored user data
+          localStorage.setItem('user', JSON.stringify(userData));
+        } catch (error: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:40',message:'Failed to fetch profile',data:{error:String(error),status:error?.response?.status},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          console.error('Failed to fetch user profile:', error);
+          // If there's a stored user, use it as fallback
+          if (storedUser) {
+            setUser(storedUser);
+          } else {
             setUser(null);
-            
-            // Only redirect if not already on login page
-            if (window.location.pathname !== '/login') {
-              window.location.href = '/login';
-            }
           }
-        } else {
-          // No valid token, clear everything
-          if (token || storedUser) {
-            authAPI.logout();
-          }
-          setUser(null);
         }
       } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:50',message:'initAuth error',data:{error:String(error)},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         console.error('Error initializing auth:', error);
-        authAPI.logout();
         setUser(null);
       } finally {
         setLoading(false);
       }
     };
-    
+
     initAuth();
-    
+
     // Listen for storage events (for PWA multi-tab sync)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'token' || e.key === 'user') {
         initAuth();
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
@@ -85,8 +93,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUser = async (userData: Partial<User>) => {
-    const updatedUser = await userAPI.updateProfile(userData);
-    setUser(updatedUser);
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:82',message:'updateUser called',data:{hasCarbs:'dailyCarbsTarget' in userData,hasFats:'dailyFatsTarget' in userData,hasFiber:'dailyFiberTarget' in userData},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    try {
+      const updatedUser = await userAPI.updateProfile(userData);
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:85',message:'updateUser API success',data:{userId:updatedUser?._id,hasCarbs:!!updatedUser?.dailyCarbsTarget},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      setUser(updatedUser);
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:89',message:'updateUser API error',data:{error:String(error),status:error?.response?.status},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      throw error;
+    }
   };
 
   return (

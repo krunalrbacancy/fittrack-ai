@@ -41,15 +41,39 @@ const userSchema = new mongoose.Schema({
   },
   dailyProteinTarget: {
     type: Number, // in grams
-    default: 150
+    default: 90
+  },
+  dailyCarbsTarget: {
+    type: Number, // in grams
+    default: 240
+  },
+  dailyFatsTarget: {
+    type: Number, // in grams
+    default: 60
+  },
+  dailyFiberTarget: {
+    type: Number, // in grams
+    default: 28
   },
   fastingCalorieTarget: {
     type: Number,
-    default: 500
+    default: 1600
   },
   fastingProteinTarget: {
     type: Number, // in grams
-    default: 50
+    default: 70
+  },
+  fastingCarbsTarget: {
+    type: Number, // in grams
+    default: 170
+  },
+  fastingFatsTarget: {
+    type: Number, // in grams
+    default: 55
+  },
+  fastingFiberTarget: {
+    type: Number, // in grams
+    default: 22
   }
 }, {
   timestamps: true

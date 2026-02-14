@@ -1,11 +1,11 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.js';
 import User from '../models/User.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(protect);
+// All routes use optional authentication (default user if no token)
+router.use(optionalAuth);
 
 // @route   GET /api/users/profile
 // @desc    Get user profile
@@ -34,8 +34,14 @@ router.put('/profile', async (req, res) => {
       goal,
       dailyCalorieTarget,
       dailyProteinTarget,
+      dailyCarbsTarget,
+      dailyFatsTarget,
+      dailyFiberTarget,
       fastingCalorieTarget,
-      fastingProteinTarget
+      fastingProteinTarget,
+      fastingCarbsTarget,
+      fastingFatsTarget,
+      fastingFiberTarget
     } = req.body;
 
     const user = await User.findByIdAndUpdate(
@@ -49,8 +55,14 @@ router.put('/profile', async (req, res) => {
         goal,
         dailyCalorieTarget,
         dailyProteinTarget,
+        dailyCarbsTarget,
+        dailyFatsTarget,
+        dailyFiberTarget,
         fastingCalorieTarget,
-        fastingProteinTarget
+        fastingProteinTarget,
+        fastingCarbsTarget,
+        fastingFatsTarget,
+        fastingFiberTarget
       },
       { new: true, runValidators: true }
     ).select('-password');
