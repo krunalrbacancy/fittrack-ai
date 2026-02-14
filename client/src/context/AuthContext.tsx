@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { authAPI, userAPI } from '../utils/api';
-import { isTokenValid } from '../utils/token';
 
 interface AuthContextType {
   user: User | null;
@@ -20,55 +19,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
         const storedUser = authAPI.getStoredUser();
-        
-        // Check if token exists and is valid
-        if (token && storedUser && isTokenValid(token)) {
-          try {
-            // Verify token is still valid by fetching user profile
-            const userData = await userAPI.getProfile();
-            setUser(userData);
-            // Update stored user data in case it changed
-            localStorage.setItem('user', JSON.stringify(userData));
-          } catch (error: any) {
-            // If API call fails (401, network error, etc.), clear auth
-            console.error('Failed to verify token:', error);
-            authAPI.logout();
+
+        // Always try to fetch user profile (backend supports optionalAuth)
+        // This ensures we get the latest data even without a token
+        try {
+          const userData = await userAPI.getProfile();
+          setUser(userData);
+          // Update stored user data
+          localStorage.setItem('user', JSON.stringify(userData));
+        } catch (error: any) {
+          console.error('Failed to fetch user profile:', error);
+          // If there's a stored user, use it as fallback
+          if (storedUser) {
+            setUser(storedUser);
+          } else {
             setUser(null);
-            
-            // Only redirect if not already on login page
-            if (window.location.pathname !== '/login') {
-              window.location.href = '/login';
-            }
           }
-        } else {
-          // No valid token, clear everything
-          if (token || storedUser) {
-            authAPI.logout();
-          }
-          setUser(null);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-        authAPI.logout();
         setUser(null);
       } finally {
         setLoading(false);
       }
     };
-    
+
     initAuth();
-    
+
     // Listen for storage events (for PWA multi-tab sync)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'token' || e.key === 'user') {
         initAuth();
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
@@ -85,8 +72,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUser = async (userData: Partial<User>) => {
-    const updatedUser = await userAPI.updateProfile(userData);
-    setUser(updatedUser);
+    try {
+      const updatedUser = await userAPI.updateProfile(userData);
+      setUser(updatedUser);
+    } catch (error: any) {
+      throw error;
+    }
   };
 
   return (

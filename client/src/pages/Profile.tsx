@@ -13,9 +13,15 @@ export const Profile: React.FC = () => {
     targetWeight: '',
     goal: 'Reduce Belly Fat',
     dailyCalorieTarget: '2000',
-    dailyProteinTarget: '150',
-    fastingCalorieTarget: '500',
-    fastingProteinTarget: '50',
+    dailyProteinTarget: '90',
+    dailyCarbsTarget: '240',
+    dailyFatsTarget: '60',
+    dailyFiberTarget: '28',
+    fastingCalorieTarget: '1600',
+    fastingProteinTarget: '70',
+    fastingCarbsTarget: '170',
+    fastingFatsTarget: '55',
+    fastingFiberTarget: '22',
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -30,9 +36,15 @@ export const Profile: React.FC = () => {
         targetWeight: user.targetWeight?.toString() || '',
         goal: user.goal || 'Reduce Belly Fat',
         dailyCalorieTarget: user.dailyCalorieTarget?.toString() || '2000',
-        dailyProteinTarget: user.dailyProteinTarget?.toString() || '150',
-        fastingCalorieTarget: user.fastingCalorieTarget?.toString() || '500',
-        fastingProteinTarget: user.fastingProteinTarget?.toString() || '50',
+        dailyProteinTarget: user.dailyProteinTarget?.toString() || '90',
+        dailyCarbsTarget: user.dailyCarbsTarget?.toString() || '240',
+        dailyFatsTarget: user.dailyFatsTarget?.toString() || '60',
+        dailyFiberTarget: user.dailyFiberTarget?.toString() || '28',
+        fastingCalorieTarget: user.fastingCalorieTarget?.toString() || '1600',
+        fastingProteinTarget: user.fastingProteinTarget?.toString() || '70',
+        fastingCarbsTarget: user.fastingCarbsTarget?.toString() || '170',
+        fastingFatsTarget: user.fastingFatsTarget?.toString() || '55',
+        fastingFiberTarget: user.fastingFiberTarget?.toString() || '22',
       });
     }
   }, [user]);
@@ -52,8 +64,14 @@ export const Profile: React.FC = () => {
         goal: formData.goal,
         dailyCalorieTarget: Number(formData.dailyCalorieTarget),
         dailyProteinTarget: Number(formData.dailyProteinTarget),
+        dailyCarbsTarget: Number(formData.dailyCarbsTarget),
+        dailyFatsTarget: Number(formData.dailyFatsTarget),
+        dailyFiberTarget: Number(formData.dailyFiberTarget),
         fastingCalorieTarget: Number(formData.fastingCalorieTarget),
         fastingProteinTarget: Number(formData.fastingProteinTarget),
+        fastingCarbsTarget: Number(formData.fastingCarbsTarget),
+        fastingFatsTarget: Number(formData.fastingFatsTarget),
+        fastingFiberTarget: Number(formData.fastingFiberTarget),
       });
       setMessage('Profile updated successfully!');
       setTimeout(() => setMessage(''), 3000);
@@ -141,7 +159,7 @@ export const Profile: React.FC = () => {
           <div className="order-2 lg:order-1 lg:w-2/3">
             <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
               <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-2 gap-4 md:gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                   <div>
                     <label className="block text-xs md:text-sm font-medium text-gray-700">Name</label>
                     <input
@@ -233,6 +251,42 @@ export const Profile: React.FC = () => {
                   </div>
 
                   <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Daily Carbs Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.dailyCarbsTarget}
+                      onChange={(e) => setFormData({ ...formData, dailyCarbsTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Daily Fats Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.dailyFatsTarget}
+                      onChange={(e) => setFormData({ ...formData, dailyFatsTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Daily Fiber Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.dailyFiberTarget}
+                      onChange={(e) => setFormData({ ...formData, dailyFiberTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Calorie Target</label>
                     <input
                       type="number"
@@ -255,6 +309,45 @@ export const Profile: React.FC = () => {
                       className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">Protein target on fasting days</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Carbs Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.fastingCarbsTarget}
+                      onChange={(e) => setFormData({ ...formData, fastingCarbsTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Carbs target on fasting days</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Fats Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.fastingFatsTarget}
+                      onChange={(e) => setFormData({ ...formData, fastingFatsTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Fats target on fasting days</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Fiber Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.fastingFiberTarget}
+                      onChange={(e) => setFormData({ ...formData, fastingFiberTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Fiber target on fasting days</p>
                   </div>
                 </div>
 

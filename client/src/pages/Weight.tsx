@@ -12,6 +12,8 @@ export const Weight: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingWeight, setEditingWeight] = useState<WeightLog | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     weight: '',
     date: getTodayDate(),
@@ -35,6 +37,8 @@ export const Weight: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // Prevent multiple submissions
+    setSubmitting(true);
     try {
       if (editingWeight) {
         await weightAPI.update(editingWeight._id, {
@@ -59,6 +63,8 @@ export const Weight: React.FC = () => {
     } catch (error) {
       console.error('Failed to save weight:', error);
       alert('Failed to save weight entry');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -74,12 +80,16 @@ export const Weight: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this weight entry?')) return;
+    if (deletingId) return; // Prevent multiple deletions
+    setDeletingId(id);
     try {
       await weightAPI.delete(id);
       loadWeights();
     } catch (error) {
       console.error('Failed to delete weight:', error);
       alert('Failed to delete weight entry');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -233,9 +243,10 @@ export const Weight: React.FC = () => {
                       </button>
                       <button
                         onClick={() => handleDelete(weight._id)}
-                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        disabled={deletingId === weight._id}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Delete
+                        {deletingId === weight._id ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
                   </div>
@@ -306,9 +317,17 @@ export const Weight: React.FC = () => {
                   <div className="bg-gray-50 px-4 py-4 sm:px-8 sm:py-6 flex flex-col-reverse sm:flex-row-reverse gap-3 flex-shrink-0 border-t">
                     <button
                       type="submit"
-                      className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-transparent shadow-sm px-6 py-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors touch-manipulation"
+                      disabled={submitting}
+                      className="w-full sm:w-auto inline-flex justify-center items-center rounded-xl border border-transparent shadow-sm px-6 py-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {editingWeight ? 'Update' : 'Add'}
+                      {submitting ? (
+                        <>
+                          <span className="animate-spin mr-2">⏳</span>
+                          {editingWeight ? 'Updating...' : 'Adding...'}
+                        </>
+                      ) : (
+                        editingWeight ? 'Update' : 'Add'
+                      )}
                     </button>
                     <button
                       type="button"

@@ -21,6 +21,21 @@ const foodEntrySchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  carbs: {
+    type: Number, // in grams
+    default: 0,
+    min: 0
+  },
+  fats: {
+    type: Number, // in grams
+    default: 0,
+    min: 0
+  },
+  fiber: {
+    type: Number, // in grams
+    default: 0,
+    min: 0
+  },
   quantity: {
     type: Number,
     required: true,

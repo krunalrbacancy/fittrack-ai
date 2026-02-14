@@ -18,24 +18,16 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     // Handle 401 Unauthorized (token expired or invalid)
     if (error.response?.status === 401) {
-      // Clear invalid token
+      // Clear invalid token but don't redirect (login is disabled)
       const token = localStorage.getItem('token');
       if (token && isTokenExpired(token)) {
         // Token is expired, clear it
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        
-        // Redirect to login if not already there
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
       } else {
         // Token might be invalid for other reasons, clear it anyway
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
       }
     }
     
@@ -52,14 +44,9 @@ api.interceptors.request.use((config) => {
   if (token) {
     // Check if token is expired before making request
     if (isTokenExpired(token)) {
-      // Token expired, clear it
+      // Token expired, clear it but don't redirect (login is disabled)
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
-      // Redirect to login if not already there
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
       
       // Cancel the request
       return Promise.reject(new Error('Token expired'));
@@ -126,6 +113,10 @@ export const foodAPI = {
   },
   delete: async (id: string): Promise<void> => {
     await api.delete(`/foods/${id}`);
+  },
+  migrate: async () => {
+    const response = await api.post('/foods/migrate');
+    return response.data;
   },
 };
 

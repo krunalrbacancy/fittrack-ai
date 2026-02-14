@@ -1,11 +1,14 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { foodAPI } from '../utils/api';
 import { FoodEntry } from '../types';
 import { Layout } from '../components/Layout';
 import { getTodayDate, formatDate } from '../utils/calculations';
-import { getNutritionData } from '../utils/nutrition';
+import { getNutritionData, getFoodSuggestions as getNutritionSuggestions, getNutritionForFood, getBaseNutritionData } from '../utils/nutrition';
+import { getFoodSuggestions as getMealSuggestions, FOOD_BY_CATEGORY } from '../utils/foodSuggestions';
+import { useAuth } from '../context/AuthContext';
 
 export const Foods: React.FC = () => {
+  const { user } = useAuth();
   const [foods, setFoods] = useState<FoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getTodayDate());
@@ -14,11 +17,37 @@ export const Foods: React.FC = () => {
   const [nutritionLoading, setNutritionLoading] = useState(false);
   const [nutritionError, setNutritionError] = useState<string | null>(null);
   const [manualEntry, setManualEntry] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
+  const [stats, setStats] = useState({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0 });
+  const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
+  const [suggestionOffsets, setSuggestionOffsets] = useState({
+    breakfast: 0,
+    lunch: 0,
+    snacks: 0,
+    dinner: 0,
+  });
   const nutritionTimeoutRef = useRef<number | null>(null);
+  const [foodSuggestions, setFoodSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const suggestionRef = useRef<HTMLDivElement>(null);
+  const [baseNutritionData, setBaseNutritionData] = useState<{
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    fiber: number;
+    per100g: boolean;
+  } | null>(null);
   const [formData, setFormData] = useState({
     foodName: '',
     protein: '',
     calories: '',
+    carbs: '',
+    fats: '',
+    fiber: '',
     quantity: '1',
     date: getTodayDate(),
     category: 'lunch' as 'breakfast' | 'lunch' | 'snacks' | 'dinner',
@@ -28,6 +57,25 @@ export const Foods: React.FC = () => {
   useEffect(() => {
     loadFoods();
   }, [selectedDate]);
+
+  // Update suggestions when food name changes
+  useEffect(() => {
+    if (!showModal || manualEntry) {
+      setFoodSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const query = formData.foodName.trim();
+    if (query.length > 0) {
+      const suggestions = getNutritionSuggestions(query);
+      setFoodSuggestions(suggestions);
+      setShowSuggestions(suggestions.length > 0);
+    } else {
+      setFoodSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [formData.foodName, showModal, manualEntry]);
 
   // Auto-fill nutrition data when food name changes (debounced)
   useEffect(() => {
@@ -53,14 +101,44 @@ export const Foods: React.FC = () => {
 
       try {
         const nutritionData = await getNutritionData(foodName);
-        
+
         if (nutritionData) {
+          // Get base nutrition data
+          const baseData = getBaseNutritionData(foodName);
+
+          if (baseData) {
+            setBaseNutritionData(baseData);
+          } else {
+            // Calculate base from current nutrition data and quantity
+            const currentQuantity = parseFloat(formData.quantity) || 1;
+            // Try to detect if it's per100g based on quantity value
+            // If quantity is close to 1, likely per unit; if > 10, might be grams
+            const likelyPer100g = currentQuantity > 10;
+            const multiplier = likelyPer100g ? currentQuantity / 100 : currentQuantity;
+
+            setBaseNutritionData({
+              calories: nutritionData.calories / multiplier,
+              protein: nutritionData.protein / multiplier,
+              carbs: (nutritionData.carbs || 0) / multiplier,
+              fats: (nutritionData.fats || 0) / multiplier,
+              fiber: (nutritionData.fiber || 0) / multiplier,
+              per100g: likelyPer100g,
+            });
+          }
+
+          // Set default quantity based on food type
+          const baseDataForQuantity = baseData || getBaseNutritionData(foodName);
+          const defaultQuantity = baseDataForQuantity?.per100g ? '100' : (nutritionData.quantity.toString() || '1');
+
           // Auto-fill the form with nutrition data
           setFormData(prev => ({
             ...prev,
             calories: nutritionData.calories.toString(),
             protein: nutritionData.protein.toString(),
-            quantity: nutritionData.quantity.toString(),
+            carbs: nutritionData.carbs?.toString() || '',
+            fats: nutritionData.fats?.toString() || '',
+            fiber: nutritionData.fiber?.toString() || '',
+            quantity: defaultQuantity,
             // Update food name if API returned a better formatted name
             foodName: nutritionData.foodName || prev.foodName,
           }));
@@ -87,6 +165,14 @@ export const Foods: React.FC = () => {
     try {
       const data = await foodAPI.getAll(selectedDate);
       setFoods(data);
+
+      // Load stats for suggestions
+      try {
+        const statsData = await foodAPI.getStats(selectedDate);
+        setStats(statsData);
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
     } catch (error) {
       console.error('Failed to load foods:', error);
     } finally {
@@ -94,14 +180,203 @@ export const Foods: React.FC = () => {
     }
   };
 
+  // Calculate remaining nutrients for suggestions
+  const dayType = foods.length > 0 && foods.some(f => f.dayType === 'fasting') ? 'fasting' : 'normal';
+  const calorieTarget = dayType === 'fasting' ? (user?.fastingCalorieTarget || 1600) : (user?.dailyCalorieTarget || 2000);
+  const proteinTarget = dayType === 'fasting' ? (user?.fastingProteinTarget || 70) : (user?.dailyProteinTarget || 90);
+  const carbsTarget = dayType === 'fasting' ? (user?.fastingCarbsTarget || 170) : (user?.dailyCarbsTarget || 240);
+  const fatsTarget = dayType === 'fasting' ? (user?.fastingFatsTarget || 55) : (user?.dailyFatsTarget || 60);
+  const fiberTarget = dayType === 'fasting' ? (user?.fastingFiberTarget || 22) : (user?.dailyFiberTarget || 28);
+
+  const remainingNutrients = useMemo(() => ({
+    calories: Math.max(0, calorieTarget - stats.totalCalories),
+    protein: Math.max(0, proteinTarget - stats.totalProtein),
+    carbs: Math.max(0, carbsTarget - (stats.totalCarbs || 0)),
+    fats: Math.max(0, fatsTarget - (stats.totalFats || 0)),
+    fiber: Math.max(0, fiberTarget - (stats.totalFiber || 0)),
+  }), [calorieTarget, proteinTarget, carbsTarget, fatsTarget, fiberTarget, stats]);
+
+  const breakfastSuggestions = useMemo(() => getMealSuggestions('breakfast', remainingNutrients, suggestionOffsets.breakfast), [remainingNutrients, suggestionOffsets.breakfast]);
+  const lunchSuggestions = useMemo(() => getMealSuggestions('lunch', remainingNutrients, suggestionOffsets.lunch), [remainingNutrients, suggestionOffsets.lunch]);
+  const snacksSuggestions = useMemo(() => getMealSuggestions('snacks', remainingNutrients, suggestionOffsets.snacks), [remainingNutrients, suggestionOffsets.snacks]);
+  const dinnerSuggestions = useMemo(() => getMealSuggestions('dinner', remainingNutrients, suggestionOffsets.dinner), [remainingNutrients, suggestionOffsets.dinner]);
+
+  // Handle refresh suggestions
+  const handleRefreshSuggestions = (category: 'breakfast' | 'lunch' | 'snacks' | 'dinner') => {
+    const categoryFoods = FOOD_BY_CATEGORY[category] || [];
+    const maxOffset = Math.max(1, categoryFoods.length - 2); // Ensure we can cycle through
+    
+    setSuggestionOffsets(prev => ({
+      ...prev,
+      [category]: (prev[category] + 3) % maxOffset,
+    }));
+  };
+
+  // Handle adding a food suggestion
+  const handleAddSuggestion = async (suggestion: any, category: string) => {
+    if (addingSuggestion) return;
+    setAddingSuggestion(suggestion.name);
+
+    try {
+      // Parse quantity from suggestion
+      const quantityMatch = suggestion.quantity.match(/^(\d+(?:\.\d+)?)/);
+      const quantity = quantityMatch ? parseFloat(quantityMatch[1]) : 1;
+
+      await foodAPI.create({
+        foodName: suggestion.name,
+        calories: suggestion.calories,
+        protein: suggestion.protein,
+        carbs: suggestion.carbs,
+        fats: suggestion.fats,
+        fiber: suggestion.fiber,
+        quantity: suggestion.per100g ? quantity / 100 : quantity,
+        date: selectedDate,
+        category: category as any,
+        dayType: dayType,
+      } as any);
+
+      // Reload foods and stats
+      await loadFoods();
+    } catch (error) {
+      console.error('Failed to add food suggestion:', error);
+      alert('Failed to add food. Please try again.');
+    } finally {
+      setAddingSuggestion(null);
+    }
+  };
+
+  // Recalculate nutrition based on quantity
+  const recalculateNutrition = (quantityValue: string, baseData: typeof baseNutritionData) => {
+    if (!baseData || manualEntry) return;
+
+    const quantity = parseFloat(quantityValue) || 1;
+    let multiplier = quantity;
+
+    // If food is per100g, treat input as grams (divide by 100 to get multiplier)
+    // If food is per unit, treat input as quantity (use directly as multiplier)
+    if (baseData.per100g) {
+      // For weight-based foods, input is in grams
+      multiplier = quantity / 100;
+    } else {
+      // For unit-based foods, input is quantity
+      multiplier = quantity;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      calories: Math.round(baseData.calories * multiplier).toString(),
+      protein: (Math.round(baseData.protein * multiplier * 10) / 10).toString(),
+      carbs: (Math.round(baseData.carbs * multiplier * 10) / 10).toString(),
+      fats: (Math.round(baseData.fats * multiplier * 10) / 10).toString(),
+      fiber: (Math.round(baseData.fiber * multiplier * 10) / 10).toString(),
+    }));
+  };
+
+  // Handle food suggestion selection
+  const handleSuggestionSelect = async (foodName: string) => {
+    setFormData(prev => ({ ...prev, foodName }));
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+
+    // Auto-fill nutrition data for selected food
+    if (!manualEntry) {
+      setNutritionLoading(true);
+      setNutritionError(null);
+
+      try {
+        // Get nutrition data for the selected food (default quantity 1)
+        const nutritionData = await getNutritionForFood(foodName, 1);
+
+        if (nutritionData) {
+          // Get base nutrition data to determine if it's per100g
+          const baseData = getBaseNutritionData(foodName);
+
+          if (baseData) {
+            // Store base nutrition data
+            setBaseNutritionData(baseData);
+          } else {
+            // If not in local DB, assume per unit (not per100g)
+            setBaseNutritionData({
+              calories: nutritionData.calories,
+              protein: nutritionData.protein,
+              carbs: nutritionData.carbs || 0,
+              fats: nutritionData.fats || 0,
+              fiber: nutritionData.fiber || 0,
+              per100g: false,
+            });
+          }
+
+          // Set default quantity based on food type
+          const defaultQuantity = baseData?.per100g ? '100' : '1';
+
+          setFormData(prev => ({
+            ...prev,
+            foodName,
+            calories: nutritionData.calories.toString(),
+            protein: nutritionData.protein.toString(),
+            carbs: (nutritionData.carbs || 0).toString(),
+            fats: (nutritionData.fats || 0).toString(),
+            fiber: (nutritionData.fiber || 0).toString(),
+            quantity: defaultQuantity, // Default to 100g for weight-based, 1 for unit-based
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching nutrition data:', error);
+        setNutritionError('Unable to fetch nutrition data. Please enter manually.');
+      } finally {
+        setNutritionLoading(false);
+      }
+    }
+  };
+
+  // Handle keyboard navigation in suggestions
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || foodSuggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prev =>
+        prev < foodSuggestions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prev => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter' && selectedSuggestionIndex >= 0) {
+      e.preventDefault();
+      handleSuggestionSelect(foodSuggestions[selectedSuggestionIndex]);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setSelectedSuggestionIndex(-1);
+    }
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    if (showSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showSuggestions]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // Prevent multiple submissions
+    setSubmitting(true);
     try {
       if (editingFood) {
         await foodAPI.update(editingFood._id, {
           ...formData,
           protein: Number(formData.protein),
           calories: Number(formData.calories),
+          carbs: formData.carbs ? Number(formData.carbs) : 0,
+          fats: formData.fats ? Number(formData.fats) : 0,
+          fiber: formData.fiber ? Number(formData.fiber) : 0,
           quantity: Number(formData.quantity),
           category: formData.category,
           dayType: formData.dayType,
@@ -111,6 +386,9 @@ export const Foods: React.FC = () => {
           ...formData,
           protein: Number(formData.protein),
           calories: Number(formData.calories),
+          carbs: formData.carbs ? Number(formData.carbs) : 0,
+          fats: formData.fats ? Number(formData.fats) : 0,
+          fiber: formData.fiber ? Number(formData.fiber) : 0,
           quantity: Number(formData.quantity),
           category: formData.category,
           dayType: formData.dayType,
@@ -123,6 +401,8 @@ export const Foods: React.FC = () => {
     } catch (error) {
       console.error('Failed to save food:', error);
       alert('Failed to save food entry');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -132,6 +412,9 @@ export const Foods: React.FC = () => {
       foodName: food.foodName,
       protein: food.protein.toString(),
       calories: food.calories.toString(),
+      carbs: (food.carbs || 0).toString(),
+      fats: (food.fats || 0).toString(),
+      fiber: (food.fiber || 0).toString(),
       quantity: food.quantity.toString(),
       date: formatDate(food.date),
       category: food.category || 'lunch',
@@ -140,17 +423,38 @@ export const Foods: React.FC = () => {
     setNutritionLoading(false);
     setNutritionError(null);
     setManualEntry(true); // Enable manual mode when editing
+    setBaseNutritionData(null); // Clear base data when editing
     setShowModal(true);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this food entry?')) return;
+    if (deletingId) return; // Prevent multiple deletions
+    setDeletingId(id);
     try {
       await foodAPI.delete(id);
       loadFoods();
     } catch (error) {
       console.error('Failed to delete food:', error);
       alert('Failed to delete food entry');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleMigrate = async () => {
+    if (!confirm('This will update carbs, fats, and fiber for all existing food entries. Proceed?')) return;
+    if (migrating) return; // Prevent multiple migrations
+    setMigrating(true);
+    try {
+      const response = await foodAPI.migrate();
+      alert(response.message || 'Migration complete');
+      loadFoods(); // Reload foods to show updated data
+    } catch (error) {
+      console.error('Failed to migrate nutrition data:', error);
+      alert('Failed to migrate nutrition data. Check console for details.');
+    } finally {
+      setMigrating(false);
     }
   };
 
@@ -159,6 +463,9 @@ export const Foods: React.FC = () => {
       foodName: '',
       protein: '',
       calories: '',
+      carbs: '',
+      fats: '',
+      fiber: '',
       quantity: '1',
       date: getTodayDate(),
       category: 'lunch',
@@ -167,6 +474,7 @@ export const Foods: React.FC = () => {
     setNutritionLoading(false);
     setNutritionError(null);
     setManualEntry(false);
+    setBaseNutritionData(null);
   };
 
   const openModal = () => {
@@ -243,11 +551,164 @@ export const Foods: React.FC = () => {
               className="w-full sm:w-auto px-4 py-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             />
             <button
+              onClick={handleMigrate}
+              disabled={migrating}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {migrating ? 'Migrating...' : 'Update Existing Entries'}
+            </button>
+            <button
               onClick={openModal}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-6 py-3 rounded-xl text-base font-medium transition-colors touch-manipulation"
             >
               + Add Food Entry
             </button>
+          </div>
+        </div>
+
+        {/* Meal Suggestions */}
+        <div className="mb-6 md:mb-8">
+          <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Meal Suggestions</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Breakfast Suggestions */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>🌅</span>
+                  <span>Breakfast</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('breakfast')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-yellow-100 active:bg-yellow-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {breakfastSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'breakfast')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-yellow-100 active:bg-yellow-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Lunch Suggestions */}
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>☀️</span>
+                  <span>Lunch</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('lunch')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-orange-100 active:bg-orange-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {lunchSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'lunch')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-orange-100 active:bg-orange-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Snacks Suggestions */}
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>🍪</span>
+                  <span>Snacks</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('snacks')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-purple-100 active:bg-purple-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {snacksSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'snacks')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-purple-100 active:bg-purple-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dinner Suggestions */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <span>🌙</span>
+                  <span>Dinner</span>
+                </h4>
+                <button
+                  onClick={() => handleRefreshSuggestions('dinner')}
+                  className="text-xs px-2 py-1 bg-white rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors text-gray-700 font-medium"
+                  title="Get different suggestions"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2">
+                {dinnerSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAddSuggestion(suggestion, 'dinner')}
+                    disabled={addingSuggestion === suggestion.name}
+                    className="w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors text-xs disabled:opacity-50"
+                  >
+                    <div className="font-medium text-gray-900">{suggestion.name}</div>
+                    <div className="text-gray-600 mt-1">
+                      {suggestion.calories} cal, {suggestion.protein}g protein
+                    </div>
+                    {addingSuggestion === suggestion.name && (
+                      <div className="text-blue-600 text-xs mt-1">Adding...</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -296,11 +757,14 @@ export const Foods: React.FC = () => {
                               <div className="mt-2 flex flex-wrap gap-2 md:gap-4 text-xs md:text-sm text-gray-500">
                                 <span>Cal: {food.calories}</span>
                                 <span>Prot: {food.protein}g</span>
+                                {food.carbs !== undefined && food.carbs > 0 && <span>Carbs: {food.carbs}g</span>}
+                                {food.fats !== undefined && food.fats > 0 && <span>Fats: {food.fats}g</span>}
+                                {food.fiber !== undefined && food.fiber > 0 && <span>Fiber: {food.fiber}g</span>}
                                 <span>Qty: {food.quantity}</span>
                                 {food.dayType && (
                                   <span className={`capitalize px-2 py-0.5 rounded text-xs ${
-                                    food.dayType === 'fasting' 
-                                      ? 'bg-purple-100 text-purple-700' 
+                                    food.dayType === 'fasting'
+                                      ? 'bg-purple-100 text-purple-700'
                                       : 'bg-gray-100 text-gray-700'
                                   }`}>
                                     {food.dayType}
@@ -317,9 +781,10 @@ export const Foods: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => handleDelete(food._id)}
-                                className="flex-1 sm:flex-none px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 rounded-lg text-sm font-medium transition-colors touch-manipulation"
+                                disabled={deletingId === food._id}
+                                className="flex-1 sm:flex-none px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 rounded-lg text-sm font-medium transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                Delete
+                                {deletingId === food._id ? 'Deleting...' : 'Delete'}
                               </button>
                             </div>
                           </div>
@@ -392,14 +857,41 @@ export const Foods: React.FC = () => {
                             {manualEntry ? '✓ Manual Entry' : 'Auto-fill'}
                           </button>
                         </div>
-                        <input
-                          type="text"
-                          required
-                          placeholder={manualEntry ? "Enter food name" : "e.g., 200g curd, 2 boiled eggs, roti, sabji"}
-                          value={formData.foodName}
-                          onChange={(e) => setFormData({ ...formData, foodName: e.target.value })}
-                          className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <div className="relative" ref={suggestionRef}>
+                          <input
+                            type="text"
+                            required
+                            placeholder={manualEntry ? "Enter food name" : "Type food name or select from suggestions"}
+                            value={formData.foodName}
+                            onChange={(e) => {
+                              setFormData({ ...formData, foodName: e.target.value });
+                              setSelectedSuggestionIndex(-1);
+                            }}
+                            onFocus={() => {
+                              if (foodSuggestions.length > 0) {
+                                setShowSuggestions(true);
+                              }
+                            }}
+                            onKeyDown={handleKeyDown}
+                            className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          {showSuggestions && foodSuggestions.length > 0 && !manualEntry && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                              {foodSuggestions.map((suggestion, index) => (
+                                <button
+                                  key={suggestion}
+                                  type="button"
+                                  onClick={() => handleSuggestionSelect(suggestion)}
+                                  className={`w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none ${
+                                    index === selectedSuggestionIndex ? 'bg-blue-50' : ''
+                                  }`}
+                                >
+                                  <span className="text-sm text-gray-900">{suggestion}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         {nutritionError && !manualEntry && (
                           <p className="mt-1 text-xs text-amber-600">{nutritionError}</p>
                         )}
@@ -435,19 +927,67 @@ export const Foods: React.FC = () => {
                             className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Carbs (g)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={formData.carbs}
+                            onChange={(e) => setFormData({ ...formData, carbs: e.target.value })}
+                            className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Fats (g)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={formData.fats}
+                            onChange={(e) => setFormData({ ...formData, fats: e.target.value })}
+                            className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Fiber (g)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={formData.fiber}
+                            onChange={(e) => setFormData({ ...formData, fiber: e.target.value })}
+                            className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                          <label className="block text-sm font-medium text-gray-700">Quantity or Grams</label>
                           <input
                             type="number"
                             required
                             min="0.1"
                             step="0.1"
                             value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                            onChange={(e) => {
+                              const newQuantity = e.target.value;
+                              setFormData(prev => ({ ...prev, quantity: newQuantity }));
+                              // Recalculate nutrition if base data exists
+                              if (baseNutritionData && !manualEntry) {
+                                recalculateNutrition(newQuantity, baseNutritionData);
+                              }
+                            }}
+                            placeholder="e.g., 2 (for quantity) or 200 (for grams)"
                             className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
+                          <p className="mt-1 text-xs text-gray-500">
+                            {baseNutritionData
+                              ? (baseNutritionData.per100g
+                                  ? `Enter grams (e.g., 200 for 200g ${formData.foodName}). Nutrition auto-calculates.`
+                                  : `Enter quantity (e.g., 2 for 2 ${formData.foodName}). Nutrition auto-calculates.`)
+                              : 'Enter quantity (e.g., 2 eggs) or grams (e.g., 200g chicken). Nutrition will auto-calculate when food is selected.'}
+                          </p>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Date</label>
@@ -491,9 +1031,17 @@ export const Foods: React.FC = () => {
                   <div className="bg-gray-50 px-4 py-4 sm:px-6 flex flex-col-reverse sm:flex-row-reverse gap-3 flex-shrink-0 border-t">
                     <button
                       type="submit"
-                      className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-transparent shadow-sm px-6 py-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors touch-manipulation"
+                      disabled={submitting}
+                      className="w-full sm:w-auto inline-flex justify-center items-center rounded-xl border border-transparent shadow-sm px-6 py-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {editingFood ? 'Update' : 'Add'}
+                      {submitting ? (
+                        <>
+                          <span className="animate-spin mr-2">⏳</span>
+                          {editingFood ? 'Updating...' : 'Adding...'}
+                        </>
+                      ) : (
+                        editingFood ? 'Update' : 'Add'
+                      )}
                     </button>
                     <button
                       type="button"

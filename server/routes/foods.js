@@ -1,16 +1,13 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { optionalAuth, protect } from '../middleware/auth.js';
 import FoodEntry from '../models/FoodEntry.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(protect);
-
 // @route   GET /api/foods
 // @desc    Get all food entries for user
-// @access  Private
-router.get('/', async (req, res) => {
+// @access  Private (optional auth for read-only access)
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { date } = req.query;
     let query = { userId: req.user._id };
@@ -33,8 +30,8 @@ router.get('/', async (req, res) => {
 
 // @route   GET /api/foods/stats
 // @desc    Get daily stats
-// @access  Private
-router.get('/stats', async (req, res) => {
+// @access  Private (optional auth for read-only access)
+router.get('/stats', optionalAuth, async (req, res) => {
   try {
     const { date } = req.query;
     const targetDate = date ? new Date(date) : new Date();
@@ -49,10 +46,16 @@ router.get('/stats', async (req, res) => {
 
     const totalCalories = foods.reduce((sum, food) => sum + food.calories, 0);
     const totalProtein = foods.reduce((sum, food) => sum + food.protein, 0);
+    const totalCarbs = foods.reduce((sum, food) => sum + (food.carbs || 0), 0);
+    const totalFats = foods.reduce((sum, food) => sum + (food.fats || 0), 0);
+    const totalFiber = foods.reduce((sum, food) => sum + (food.fiber || 0), 0);
 
     res.json({
       totalCalories,
       totalProtein,
+      totalCarbs,
+      totalFats,
+      totalFiber,
       foodCount: foods.length
     });
   } catch (error) {
@@ -63,8 +66,8 @@ router.get('/stats', async (req, res) => {
 
 // @route   GET /api/foods/weekly
 // @desc    Get weekly stats
-// @access  Private
-router.get('/weekly', async (req, res) => {
+// @access  Private (optional auth for read-only access)
+router.get('/weekly', optionalAuth, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -81,10 +84,13 @@ router.get('/weekly', async (req, res) => {
     foods.forEach(food => {
       const dateKey = food.date.toISOString().split('T')[0];
       if (!dailyStats[dateKey]) {
-        dailyStats[dateKey] = { calories: 0, protein: 0 };
+        dailyStats[dateKey] = { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 };
       }
       dailyStats[dateKey].calories += food.calories;
       dailyStats[dateKey].protein += food.protein;
+      dailyStats[dateKey].carbs += (food.carbs || 0);
+      dailyStats[dateKey].fats += (food.fats || 0);
+      dailyStats[dateKey].fiber += (food.fiber || 0);
     });
 
     res.json(dailyStats);
@@ -96,10 +102,10 @@ router.get('/weekly', async (req, res) => {
 
 // @route   POST /api/foods
 // @desc    Create food entry
-// @access  Private
-router.post('/', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.post('/', protect, async (req, res) => {
   try {
-    const { foodName, protein, calories, quantity, date, category, dayType } = req.body;
+    const { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber } = req.body;
 
     if (!foodName || protein === undefined || calories === undefined || !quantity) {
       return res.status(400).json({ message: 'Please provide all required fields' });
@@ -113,7 +119,10 @@ router.post('/', async (req, res) => {
       quantity: Number(quantity),
       date: date ? new Date(date) : new Date(),
       category: category || 'lunch',
-      dayType: dayType || 'normal'
+      dayType: dayType || 'normal',
+      carbs: carbs !== undefined ? Number(carbs) : 0,
+      fats: fats !== undefined ? Number(fats) : 0,
+      fiber: fiber !== undefined ? Number(fiber) : 0
     });
 
     res.status(201).json(foodEntry);
@@ -125,10 +134,10 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/foods/:id
 // @desc    Update food entry
-// @access  Private
-router.put('/:id', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.put('/:id', protect, async (req, res) => {
   try {
-    const { foodName, protein, calories, quantity, date, category, dayType } = req.body;
+    const { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber } = req.body;
 
     const foodEntry = await FoodEntry.findOne({
       _id: req.params.id,
@@ -146,6 +155,9 @@ router.put('/:id', async (req, res) => {
     foodEntry.date = date ? new Date(date) : foodEntry.date;
     if (category) foodEntry.category = category;
     if (dayType) foodEntry.dayType = dayType;
+    foodEntry.carbs = carbs !== undefined ? Number(carbs) : (foodEntry.carbs || 0);
+    foodEntry.fats = fats !== undefined ? Number(fats) : (foodEntry.fats || 0);
+    foodEntry.fiber = fiber !== undefined ? Number(fiber) : (foodEntry.fiber || 0);
 
     await foodEntry.save();
 
@@ -158,8 +170,8 @@ router.put('/:id', async (req, res) => {
 
 // @route   DELETE /api/foods/:id
 // @desc    Delete food entry
-// @access  Private
-router.delete('/:id', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.delete('/:id', protect, async (req, res) => {
   try {
     const foodEntry = await FoodEntry.findOne({
       _id: req.params.id,
@@ -175,6 +187,42 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Food entry deleted' });
   } catch (error) {
     console.error('Delete food error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/foods/migrate
+// @desc    Migrate existing food entries to add carbs, fats, fiber (set to 0 if missing)
+// @access  Private (requires authentication for write operations)
+router.post('/migrate', protect, async (req, res) => {
+  try {
+    const result = await FoodEntry.updateMany(
+      {
+        userId: req.user._id,
+        $or: [
+          { carbs: { $exists: false } },
+          { carbs: null },
+          { fats: { $exists: false } },
+          { fats: null },
+          { fiber: { $exists: false } },
+          { fiber: null }
+        ]
+      },
+      {
+        $set: {
+          carbs: 0,
+          fats: 0,
+          fiber: 0
+        }
+      }
+    );
+
+    res.json({
+      message: 'Migration completed',
+      updated: result.modifiedCount
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
