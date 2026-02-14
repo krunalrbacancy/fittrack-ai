@@ -1,16 +1,13 @@
 import express from 'express';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth, protect } from '../middleware/auth.js';
 import FoodEntry from '../models/FoodEntry.js';
 
 const router = express.Router();
 
-// All routes use optional authentication (default user if no token)
-router.use(optionalAuth);
-
 // @route   GET /api/foods
 // @desc    Get all food entries for user
-// @access  Private
-router.get('/', async (req, res) => {
+// @access  Private (optional auth for read-only access)
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { date } = req.query;
     let query = { userId: req.user._id };
@@ -33,8 +30,8 @@ router.get('/', async (req, res) => {
 
 // @route   GET /api/foods/stats
 // @desc    Get daily stats
-// @access  Private
-router.get('/stats', async (req, res) => {
+// @access  Private (optional auth for read-only access)
+router.get('/stats', optionalAuth, async (req, res) => {
   try {
     const { date } = req.query;
     const targetDate = date ? new Date(date) : new Date();
@@ -69,8 +66,8 @@ router.get('/stats', async (req, res) => {
 
 // @route   GET /api/foods/weekly
 // @desc    Get weekly stats
-// @access  Private
-router.get('/weekly', async (req, res) => {
+// @access  Private (optional auth for read-only access)
+router.get('/weekly', optionalAuth, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -105,8 +102,8 @@ router.get('/weekly', async (req, res) => {
 
 // @route   POST /api/foods
 // @desc    Create food entry
-// @access  Private
-router.post('/', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.post('/', protect, async (req, res) => {
   try {
     const { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber } = req.body;
 
@@ -137,8 +134,8 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/foods/:id
 // @desc    Update food entry
-// @access  Private
-router.put('/:id', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.put('/:id', protect, async (req, res) => {
   try {
     const { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber } = req.body;
 
@@ -173,8 +170,8 @@ router.put('/:id', async (req, res) => {
 
 // @route   DELETE /api/foods/:id
 // @desc    Delete food entry
-// @access  Private
-router.delete('/:id', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.delete('/:id', protect, async (req, res) => {
   try {
     const foodEntry = await FoodEntry.findOne({
       _id: req.params.id,
@@ -196,8 +193,8 @@ router.delete('/:id', async (req, res) => {
 
 // @route   POST /api/foods/migrate
 // @desc    Migrate existing food entries to add carbs, fats, fiber (set to 0 if missing)
-// @access  Private
-router.post('/migrate', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.post('/migrate', protect, async (req, res) => {
   try {
     const result = await FoodEntry.updateMany(
       {

@@ -203,9 +203,12 @@ export const Foods: React.FC = () => {
 
   // Handle refresh suggestions
   const handleRefreshSuggestions = (category: 'breakfast' | 'lunch' | 'snacks' | 'dinner') => {
+    const categoryFoods = FOOD_BY_CATEGORY[category] || [];
+    const maxOffset = Math.max(1, categoryFoods.length - 2); // Ensure we can cycle through
+    
     setSuggestionOffsets(prev => ({
       ...prev,
-      [category]: (prev[category] + 3) % 9, // Cycle through suggestions (assuming max 9 foods per category)
+      [category]: (prev[category] + 3) % maxOffset,
     }));
   };
 

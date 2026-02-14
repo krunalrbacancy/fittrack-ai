@@ -27,11 +27,8 @@ export const Profile: React.FC = () => {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Profile.tsx:29',message:'Profile useEffect triggered',data:{hasUser:!!user,userId:user?._id,hasName:!!user?.name,hasCarbs:!!user?.dailyCarbsTarget},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     if (user) {
-      const newFormData = {
+      setFormData({
         name: user.name || '',
         age: user.age?.toString() || '',
         height: user.height?.toString() || '',
@@ -48,11 +45,7 @@ export const Profile: React.FC = () => {
         fastingCarbsTarget: user.fastingCarbsTarget?.toString() || '170',
         fastingFatsTarget: user.fastingFatsTarget?.toString() || '55',
         fastingFiberTarget: user.fastingFiberTarget?.toString() || '22',
-      };
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Profile.tsx:48',message:'Setting formData from user',data:{name:newFormData.name,carbs:newFormData.dailyCarbsTarget},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      setFormData(newFormData);
+      });
     }
   }, [user]);
 
@@ -61,39 +54,28 @@ export const Profile: React.FC = () => {
     setLoading(true);
     setMessage('');
 
-    // #region agent log
-    const submitData = {
-      name: formData.name,
-      age: formData.age ? Number(formData.age) : null,
-      height: formData.height ? Number(formData.height) : null,
-      currentWeight: formData.currentWeight ? Number(formData.currentWeight) : null,
-      targetWeight: formData.targetWeight ? Number(formData.targetWeight) : null,
-      goal: formData.goal,
-      dailyCalorieTarget: Number(formData.dailyCalorieTarget),
-      dailyProteinTarget: Number(formData.dailyProteinTarget),
-      dailyCarbsTarget: Number(formData.dailyCarbsTarget),
-      dailyFatsTarget: Number(formData.dailyFatsTarget),
-      dailyFiberTarget: Number(formData.dailyFiberTarget),
-      fastingCalorieTarget: Number(formData.fastingCalorieTarget),
-      fastingProteinTarget: Number(formData.fastingProteinTarget),
-      fastingCarbsTarget: Number(formData.fastingCarbsTarget),
-      fastingFatsTarget: Number(formData.fastingFatsTarget),
-      fastingFiberTarget: Number(formData.fastingFiberTarget),
-    };
-    fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Profile.tsx:52',message:'handleSubmit called',data:submitData,timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     try {
-      await updateUser(submitData);
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Profile.tsx:76',message:'updateUser success',data:{},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      await updateUser({
+        name: formData.name,
+        age: formData.age ? Number(formData.age) : null,
+        height: formData.height ? Number(formData.height) : null,
+        currentWeight: formData.currentWeight ? Number(formData.currentWeight) : null,
+        targetWeight: formData.targetWeight ? Number(formData.targetWeight) : null,
+        goal: formData.goal,
+        dailyCalorieTarget: Number(formData.dailyCalorieTarget),
+        dailyProteinTarget: Number(formData.dailyProteinTarget),
+        dailyCarbsTarget: Number(formData.dailyCarbsTarget),
+        dailyFatsTarget: Number(formData.dailyFatsTarget),
+        dailyFiberTarget: Number(formData.dailyFiberTarget),
+        fastingCalorieTarget: Number(formData.fastingCalorieTarget),
+        fastingProteinTarget: Number(formData.fastingProteinTarget),
+        fastingCarbsTarget: Number(formData.fastingCarbsTarget),
+        fastingFatsTarget: Number(formData.fastingFatsTarget),
+        fastingFiberTarget: Number(formData.fastingFiberTarget),
+      });
       setMessage('Profile updated successfully!');
       setTimeout(() => setMessage(''), 3000);
-    } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/9bdd0136-1069-43f1-84b9-1dd5076c3ea5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Profile.tsx:80',message:'updateUser error',data:{error:String(error),status:error?.response?.status},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+    } catch (error) {
       console.error('Failed to update profile:', error);
       setMessage('Failed to update profile');
     } finally {

@@ -1,16 +1,13 @@
 import express from 'express';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth, protect } from '../middleware/auth.js';
 import User from '../models/User.js';
 
 const router = express.Router();
 
-// All routes use optional authentication (default user if no token)
-router.use(optionalAuth);
-
 // @route   GET /api/users/profile
 // @desc    Get user profile
-// @access  Private
-router.get('/profile', async (req, res) => {
+// @access  Private (optional auth for read-only access)
+router.get('/profile', optionalAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
     res.json(user);
@@ -22,8 +19,8 @@ router.get('/profile', async (req, res) => {
 
 // @route   PUT /api/users/profile
 // @desc    Update user profile
-// @access  Private
-router.put('/profile', async (req, res) => {
+// @access  Private (requires authentication for write operations)
+router.put('/profile', protect, async (req, res) => {
   try {
     const {
       name,

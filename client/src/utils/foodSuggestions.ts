@@ -1,6 +1,6 @@
 // Food suggestions based on meal category and nutritional needs
 
-interface FoodSuggestion {
+export interface FoodSuggestion {
   name: string;
   calories: number;
   protein: number;
@@ -20,7 +20,7 @@ interface RemainingNutrients {
 }
 
 // Food database organized by category
-const FOOD_BY_CATEGORY: Record<string, FoodSuggestion[]> = {
+export const FOOD_BY_CATEGORY: Record<string, FoodSuggestion[]> = {
   breakfast: [
     { name: '2 boiled eggs', calories: 140, protein: 12, carbs: 0.8, fats: 10, fiber: 0, quantity: '2', per100g: false },
     { name: '100g curd', calories: 98, protein: 11, carbs: 3.4, fats: 4.3, fiber: 0, quantity: '100', per100g: true },

@@ -5,7 +5,7 @@ import { DailyStats, FoodEntry, WaterStats } from '../types';
 import { getTodayDate } from '../utils/calculations';
 import { Layout } from '../components/Layout';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { getFoodSuggestions } from '../utils/foodSuggestions';
+import { getFoodSuggestions, FOOD_BY_CATEGORY } from '../utils/foodSuggestions';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -186,9 +186,13 @@ export const Dashboard: React.FC = () => {
 
   // Handle refresh suggestions
   const handleRefreshSuggestions = (category: 'breakfast' | 'lunch' | 'snacks' | 'dinner') => {
+    // Get the actual number of foods in this category for proper cycling
+    const categoryFoods = FOOD_BY_CATEGORY[category] || [];
+    const maxOffset = Math.max(1, categoryFoods.length - 2); // Ensure we can cycle through
+    
     setSuggestionOffsets(prev => ({
       ...prev,
-      [category]: (prev[category] + 3) % 9, // Cycle through suggestions
+      [category]: (prev[category] + 3) % maxOffset,
     }));
   };
 
