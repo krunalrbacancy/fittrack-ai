@@ -237,7 +237,6 @@ export function getLocalNutritionData(
  */
 export function getFoodSuggestions(query: string = ''): string[] {
   const normalizedQuery = query.toLowerCase().trim();
-  const suggestions: string[] = [];
 
   // Get all unique food names from COMMON_FOODS
   const foodNames = Object.keys(COMMON_FOODS);

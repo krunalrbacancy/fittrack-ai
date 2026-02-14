@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { authAPI, userAPI } from '../utils/api';
-import { isTokenValid } from '../utils/token';
 
 interface AuthContextType {
   user: User | null;
@@ -20,7 +19,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
         const storedUser = authAPI.getStoredUser();
 
         // Always try to fetch user profile (backend supports optionalAuth)

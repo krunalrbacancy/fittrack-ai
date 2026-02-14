@@ -4,7 +4,7 @@ import { FoodEntry } from '../types';
 import { Layout } from '../components/Layout';
 import { getTodayDate, formatDate } from '../utils/calculations';
 import { getNutritionData, getFoodSuggestions as getNutritionSuggestions, getNutritionForFood, getBaseNutritionData } from '../utils/nutrition';
-import { getFoodSuggestions as getMealSuggestions } from '../utils/foodSuggestions';
+import { getFoodSuggestions as getMealSuggestions, FOOD_BY_CATEGORY } from '../utils/foodSuggestions';
 import { useAuth } from '../context/AuthContext';
 
 export const Foods: React.FC = () => {

@@ -165,9 +165,6 @@ export const Dashboard: React.FC = () => {
 
   const calorieExceeded = stats.totalCalories > calorieTarget;
   const proteinDeficit = stats.totalProtein < proteinTarget;
-  const carbsDeficit = (stats.totalCarbs || 0) < carbsTarget;
-  const fatsDeficit = (stats.totalFats || 0) < fatsTarget;
-  const fiberDeficit = (stats.totalFiber || 0) < fiberTarget;
   const waterDeficit = waterStats.totalWater < recommendedWater;
 
   // Calculate food suggestions for each meal
