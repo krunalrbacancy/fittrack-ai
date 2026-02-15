@@ -16,25 +16,78 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const login = async (username: string, password: string) => {
+    const response = await authAPI.login(username, password);
+    setUser(response.user);
+  };
+
   useEffect(() => {
     const initAuth = async () => {
       try {
+        const token = localStorage.getItem('token');
         const storedUser = authAPI.getStoredUser();
 
-        // Always try to fetch user profile (backend supports optionalAuth)
-        // This ensures we get the latest data even without a token
-        try {
-          const userData = await userAPI.getProfile();
-          setUser(userData);
-          // Update stored user data
-          localStorage.setItem('user', JSON.stringify(userData));
-        } catch (error: any) {
-          console.error('Failed to fetch user profile:', error);
-          // If there's a stored user, use it as fallback
-          if (storedUser) {
-            setUser(storedUser);
-          } else {
-            setUser(null);
+        // If no token exists, auto-login with default credentials
+        if (!token) {
+          try {
+            const loginResponse = await authAPI.login('admin', 'admin123');
+            setUser(loginResponse.user);
+            // After auto-login, fetch the profile to get latest data
+            try {
+              const userData = await userAPI.getProfile();
+              setUser(userData);
+              localStorage.setItem('user', JSON.stringify(userData));
+            } catch (profileError: any) {
+              // If profile fetch fails, use login response
+              console.error('Failed to fetch user profile after auto-login:', profileError);
+            }
+          } catch (loginError: any) {
+            console.error('Auto-login failed:', loginError);
+            // If auto-login fails, try to fetch profile anyway (optionalAuth)
+            try {
+              const userData = await userAPI.getProfile();
+              setUser(userData);
+              localStorage.setItem('user', JSON.stringify(userData));
+            } catch (profileError: any) {
+              console.error('Failed to fetch user profile:', profileError);
+              if (storedUser) {
+                setUser(storedUser);
+              } else {
+                setUser(null);
+              }
+            }
+          }
+        } else {
+          // Token exists, fetch user profile
+          try {
+            const userData = await userAPI.getProfile();
+            setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
+          } catch (error: any) {
+            console.error('Failed to fetch user profile:', error);
+            // If token is invalid, try auto-login
+            if (error.response?.status === 401) {
+              try {
+                const loginResponse = await authAPI.login('admin', 'admin123');
+                setUser(loginResponse.user);
+                const userData = await userAPI.getProfile();
+                setUser(userData);
+                localStorage.setItem('user', JSON.stringify(userData));
+              } catch (loginError: any) {
+                console.error('Auto-login after token failure:', loginError);
+                if (storedUser) {
+                  setUser(storedUser);
+                } else {
+                  setUser(null);
+                }
+              }
+            } else {
+              if (storedUser) {
+                setUser(storedUser);
+              } else {
+                setUser(null);
+              }
+            }
           }
         }
       } catch (error) {
@@ -60,11 +113,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
-
-  const login = async (username: string, password: string) => {
-    const response = await authAPI.login(username, password);
-    setUser(response.user);
-  };
 
   const logout = () => {
     authAPI.logout();
