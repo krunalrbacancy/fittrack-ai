@@ -36,6 +36,11 @@ const foodEntrySchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  sugar: {
+    type: Number, // in grams
+    default: 0,
+    min: 0
+  },
   quantity: {
     type: Number,
     required: true,

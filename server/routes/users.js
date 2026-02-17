@@ -34,11 +34,13 @@ router.put('/profile', protect, async (req, res) => {
       dailyCarbsTarget,
       dailyFatsTarget,
       dailyFiberTarget,
+      dailySugarTarget,
       fastingCalorieTarget,
       fastingProteinTarget,
       fastingCarbsTarget,
       fastingFatsTarget,
-      fastingFiberTarget
+      fastingFiberTarget,
+      fastingSugarTarget
     } = req.body;
 
     const user = await User.findByIdAndUpdate(
@@ -55,11 +57,13 @@ router.put('/profile', protect, async (req, res) => {
         dailyCarbsTarget,
         dailyFatsTarget,
         dailyFiberTarget,
+        dailySugarTarget,
         fastingCalorieTarget,
         fastingProteinTarget,
         fastingCarbsTarget,
         fastingFatsTarget,
-        fastingFiberTarget
+        fastingFiberTarget,
+        fastingSugarTarget
       },
       { new: true, runValidators: true }
     ).select('-password');
