@@ -9,6 +9,7 @@ interface NutritionData {
   fiber?: number; // in grams
   quantity: number;
   foodName: string;
+  isPerUnit?: boolean; // true if this is per-unit (e.g., per nut), false if per-100g
 }
 
 /**
@@ -89,8 +90,50 @@ export async function fetchNutritionData(
     const data = await response.json();
 
     if (data.foods && data.foods.length > 0) {
-      // Get the first (most relevant) result
-      const food = data.foods[0];
+      // Prefer whole foods over processed products
+      // Keywords that indicate whole/raw/cooked foods
+      const wholeFoodKeywords = ['nuts,', 'raw', 'fresh', 'whole', 'unprocessed', 'cooked', 'boiled', 'steamed', 'rice,', 'rice '];
+      // Keywords to avoid (processed products)
+      const processedKeywords = ['flour', 'oil', 'butter', 'powder', 'extract', 'paste', 'sauce', 'candy', 'candies', 'processed', 'canned', 'dried', 'crackers', 'cakes', 'snacks', 'crispy', 'fried'];
+      
+      // Find the best match
+      let bestFood = data.foods[0];
+      let bestScore = 0;
+      
+      for (const food of data.foods) {
+        const description = (food.description || '').toLowerCase();
+        let score = food.score || 0;
+        
+        // Boost score for whole foods
+        for (const keyword of wholeFoodKeywords) {
+          if (description.includes(keyword)) {
+            score += 100;
+            break;
+          }
+        }
+        
+        // Reduce score for processed products
+        for (const keyword of processedKeywords) {
+          if (description.includes(keyword)) {
+            score -= 50;
+            break;
+          }
+        }
+        
+        // Prefer exact matches (e.g., "almonds" should match "Nuts, almonds" better than "Flour, almond")
+        const searchTerm = foodName.toLowerCase();
+        if (description.includes(searchTerm) && !description.includes(',')) {
+          score += 20; // Boost for simple names
+        }
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestFood = food;
+        }
+      }
+      
+      // Use the best match
+      const food = bestFood;
 
       // Extract nutrition data from foodNutrients array
       // USDA returns nutrients in different format
@@ -105,9 +148,16 @@ export async function fetchNutritionData(
           const value = nutrient.value || nutrient.amount || 0;
           const nutrientId = nutrient.nutrientId || nutrient.nutrient?.id;
 
-          // Energy (kcal) - nutrient ID 1008
+          // Energy (kcal) - nutrient ID 1008 (primary)
+          // Also check for alternative energy IDs: 2047 (Atwater General), 2048 (Atwater Specific)
+          // Prefer 1008, but fall back to others if 1008 is not available
           if (nutrientId === 1008) {
             calories = value;
+          } else if (nutrientId === 2047 || nutrientId === 2048) {
+            // Use alternative energy values if 1008 is not found
+            if (calories === 0) {
+              calories = value;
+            }
           }
           // Protein - nutrient ID 1003
           else if (nutrientId === 1003) {
@@ -128,9 +178,76 @@ export async function fetchNutritionData(
         });
       }
 
-      // USDA data is typically per 100g, so adjust for quantity
-      // If quantity represents servings (not grams), multiply accordingly
-      const multiplier = quantity;
+      // Check if this is a per-unit food (nuts, eggs, roti/chapati)
+      const description = (food.description || '').toLowerCase();
+      const isNut = description.includes('nuts,') || description.includes('nuts ');
+      // Detect eggs - look for "egg" but exclude "eggplant", "eggnog", etc.
+      // USDA egg descriptions typically include "egg" and often "whole", "large", "grade", or "raw"
+      const isEgg = (description.includes('egg') || description.includes('eggs')) && 
+                    !description.includes('eggplant') && 
+                    !description.includes('eggnog');
+      const isRoti = description.includes('roti') || description.includes('chapati') || description.includes('phulka');
+      
+      // Common per-unit food counts per 100g (average)
+      const perUnitCountsPer100g: Record<string, number> = {
+        // Nuts
+        'almond': 90,
+        'almonds': 90,
+        'walnut': 35,
+        'walnuts': 35,
+        'cashew': 75,
+        'cashews': 75,
+        'peanut': 110,
+        'peanuts': 110,
+        'pistachio': 100,
+        'pistachios': 100,
+        'pecan': 70,
+        'pecans': 70,
+        'hazelnut': 80,
+        'hazelnuts': 80,
+        'brazil nut': 15,
+        'brazil nuts': 15,
+        'macadamia': 50,
+        'macadamias': 50,
+        // Eggs (1 large egg ≈ 50g)
+        'egg': 2,
+        'eggs': 2,
+        // Roti/Chapati (1 roti ≈ 35g)
+        'roti': 2.86, // 100/35
+        'chapati': 2.86,
+        'phulka': 2.86,
+      };
+      
+      let multiplier: number;
+      let isPerUnit = false;
+      
+      if (isNut || isEgg || isRoti) {
+        // For per-unit foods, find the type and convert to per-unit
+        let unitsPer100g = 100; // Default fallback
+        for (const [foodName, count] of Object.entries(perUnitCountsPer100g)) {
+          if (description.includes(foodName)) {
+            unitsPer100g = count;
+            break;
+          }
+        }
+        
+        // For per-unit foods, always convert to per-unit
+        // If quantity is 100 (per 100g from API), convert to per-unit (1 unit)
+        // Otherwise, treat quantity as number of units
+        if (quantity === 100) {
+          // Convert per-100g to per-unit (1 unit)
+          multiplier = 1 / unitsPer100g;
+          isPerUnit = true;
+        } else {
+          // Quantity is already number of units, convert to multiplier
+          multiplier = quantity / unitsPer100g;
+          isPerUnit = true;
+        }
+      } else {
+        // For non-per-unit foods, USDA data is always per 100g, so treat quantity as grams
+        // Divide by 100 to get the multiplier (e.g., 100g = 1.0, 50g = 0.5, 1g = 0.01)
+        multiplier = quantity / 100;
+      }
 
       return {
         calories: Math.round(calories * multiplier),
@@ -138,8 +255,9 @@ export async function fetchNutritionData(
         carbs: Math.round(carbs * multiplier * 10) / 10,
         fats: Math.round(fats * multiplier * 10) / 10,
         fiber: Math.round(fiber * multiplier * 10) / 10,
-        quantity,
+        quantity: isPerUnit ? (quantity === 100 ? 1 : quantity) : quantity, // For nuts from API (100g), return 1; otherwise return actual quantity
         foodName: food.description || foodName,
+        isPerUnit, // Add flag to indicate if this is per-unit
       };
     }
 
@@ -177,9 +295,9 @@ const COMMON_FOODS: Record<string, { calories: number; protein: number; carbs?: 
   // Indian foods (per 100g for weight-based entries)
   'curd': { calories: 98, protein: 11, carbs: 3.4, fats: 4.3, fiber: 0, per100g: true },
   'dahi': { calories: 98, protein: 11, carbs: 3.4, fats: 4.3, fiber: 0, per100g: true },
-  'roti': { calories: 297, protein: 7.9, carbs: 46, fats: 9.2, fiber: 2.7, per100g: true },
-  'chapati': { calories: 297, protein: 7.9, carbs: 46, fats: 9.2, fiber: 2.7, per100g: true },
-  'phulka': { calories: 297, protein: 7.9, carbs: 46, fats: 9.2, fiber: 2.7, per100g: true },
+  'roti': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, per100g: false }, // Per roti (~30g)
+  'chapati': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, per100g: false }, // Per chapati (~30g)
+  'phulka': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, per100g: false }, // Per phulka (~30g)
   'sabji': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, per100g: true },
   'sabzi': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, per100g: true },
   'vegetable': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, per100g: true },
@@ -192,6 +310,10 @@ const COMMON_FOODS: Record<string, { calories: number; protein: number; carbs?: 
   'rice': { calories: 130, protein: 2.7, carbs: 28, fats: 0.3, fiber: 0.4, per100g: true },
   'dal': { calories: 116, protein: 6.8, carbs: 20, fats: 0.4, fiber: 7.9, per100g: true },
   'lentil': { calories: 116, protein: 6.8, carbs: 20, fats: 0.4, fiber: 7.9, per100g: true },
+  'chana': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
+  'chickpea': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
+  'chickpeas': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
+  'chole': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
 };
 
 /**
@@ -323,5 +445,59 @@ export async function getNutritionData(
 
   // Fallback to local database
   return getLocalNutritionData(foodName, quantity, weightInGrams);
+}
+
+/**
+ * Get nutrition data from static database only (no API call)
+ * This is used when user types a food name and we want to auto-fill from local data
+ */
+export function getNutritionFromStaticOnly(
+  foodName: string
+): { nutritionData: NutritionData; isPer100g: boolean } | null {
+  const baseData = getBaseNutritionData(foodName);
+  if (baseData) {
+    const quantity = baseData.per100g ? 100 : 1;
+    const localData = getLocalNutritionData(foodName, quantity, undefined);
+    if (localData) {
+      return { nutritionData: localData, isPer100g: baseData.per100g };
+    }
+  }
+  return null;
+}
+
+/**
+ * Get nutrition data for auto-fill (always returns per 100g for USDA, or per unit for local)
+ * This is used when user clicks "Search API" button to search USDA database
+ */
+export async function getNutritionForAutoFill(
+  foodName: string,
+  useAPI: boolean = false
+): Promise<{ nutritionData: NutritionData; isPer100g: boolean } | null> {
+  // If not using API, only check static database
+  if (!useAPI) {
+    return getNutritionFromStaticOnly(foodName);
+  }
+
+  // Check if food exists in local DB first (for common foods like rice, dal, etc.)
+  // This ensures we get the right food (e.g., "rice" not "rice crackers")
+  const baseData = getBaseNutritionData(foodName);
+  if (baseData) {
+    // For common foods in our database, prefer local data over API
+    const quantity = baseData.per100g ? 100 : 1;
+    const localData = getLocalNutritionData(foodName, quantity, undefined);
+    if (localData) {
+      return { nutritionData: localData, isPer100g: baseData.per100g };
+    }
+  }
+
+  // Try USDA API - fetch per 100g, but it will convert to per-unit for nuts/eggs/roti
+  const apiData = await fetchNutritionData(foodName, 100);
+  if (apiData) {
+    // If it's a per-unit food (isPerUnit flag), treat as per-unit, otherwise per-100g
+    const isPer100g = !apiData.isPerUnit;
+    return { nutritionData: apiData, isPer100g };
+  }
+
+  return null;
 }
 

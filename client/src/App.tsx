@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Foods } from './pages/Foods';
@@ -8,17 +9,19 @@ import { Profile } from './pages/Profile';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/foods" element={<Foods />} />
-          <Route path="/weight" element={<Weight />} />
-          <Route path="/profile" element={<Profile />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<Landing key="landing" />} />
+            <Route path="/dashboard" element={<Dashboard key="dashboard" />} />
+            <Route path="/foods" element={<Foods key="foods" />} />
+            <Route path="/weight" element={<Weight key="weight" />} />
+            <Route path="/profile" element={<Profile key="profile" />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

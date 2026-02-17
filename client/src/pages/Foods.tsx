@@ -1,14 +1,14 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { foodAPI } from '../utils/api';
 import { FoodEntry } from '../types';
 import { Layout } from '../components/Layout';
 import { getTodayDate, formatDate } from '../utils/calculations';
-import { getNutritionData, getFoodSuggestions as getNutritionSuggestions, getNutritionForFood, getBaseNutritionData } from '../utils/nutrition';
+import { getFoodSuggestions as getNutritionSuggestions, getNutritionForFood, getBaseNutritionData, getNutritionForAutoFill, getNutritionFromStaticOnly } from '../utils/nutrition';
 import { getFoodSuggestions as getMealSuggestions, FOOD_BY_CATEGORY } from '../utils/foodSuggestions';
 import { useAuth } from '../context/AuthContext';
 
 export const Foods: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [foods, setFoods] = useState<FoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getTodayDate());
@@ -54,9 +54,46 @@ export const Foods: React.FC = () => {
     dayType: 'normal' as 'normal' | 'fasting',
   });
 
-  useEffect(() => {
-    loadFoods();
+  const loadFoods = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await foodAPI.getAll(selectedDate);
+      setFoods(data);
+
+      // Load stats for suggestions
+      try {
+        const statsData = await foodAPI.getStats(selectedDate);
+        setStats(statsData);
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+    } catch (error: any) {
+      console.error('Failed to load foods:', error);
+      if (error.response?.status === 401) {
+        setFoods([]);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [selectedDate]);
+
+  useEffect(() => {
+    // Only load data when auth is ready
+    if (!authLoading) {
+      loadFoods();
+    }
+  }, [loadFoods, authLoading]);
+
+  // Refresh data when page becomes visible (user switches back to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadFoods();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [loadFoods]);
 
   // Update suggestions when food name changes
   useEffect(() => {
@@ -100,37 +137,26 @@ export const Foods: React.FC = () => {
       setNutritionError(null);
 
       try {
-        const nutritionData = await getNutritionData(foodName);
+        // Use static database only (no API call)
+        const result = getNutritionFromStaticOnly(foodName);
 
-        if (nutritionData) {
-          // Get base nutrition data
-          const baseData = getBaseNutritionData(foodName);
+        if (result) {
+          const { nutritionData, isPer100g } = result;
+          
+          // Set base nutrition data (per 100g values)
+          setBaseNutritionData({
+            calories: nutritionData.calories,
+            protein: nutritionData.protein,
+            carbs: nutritionData.carbs || 0,
+            fats: nutritionData.fats || 0,
+            fiber: nutritionData.fiber || 0,
+            per100g: isPer100g,
+          });
 
-          if (baseData) {
-            setBaseNutritionData(baseData);
-          } else {
-            // Calculate base from current nutrition data and quantity
-            const currentQuantity = parseFloat(formData.quantity) || 1;
-            // Try to detect if it's per100g based on quantity value
-            // If quantity is close to 1, likely per unit; if > 10, might be grams
-            const likelyPer100g = currentQuantity > 10;
-            const multiplier = likelyPer100g ? currentQuantity / 100 : currentQuantity;
+          // Set default quantity: 100g for per100g foods, 1 for per-unit foods
+          const defaultQuantity = isPer100g ? '100' : '1';
 
-            setBaseNutritionData({
-              calories: nutritionData.calories / multiplier,
-              protein: nutritionData.protein / multiplier,
-              carbs: (nutritionData.carbs || 0) / multiplier,
-              fats: (nutritionData.fats || 0) / multiplier,
-              fiber: (nutritionData.fiber || 0) / multiplier,
-              per100g: likelyPer100g,
-            });
-          }
-
-          // Set default quantity based on food type
-          const baseDataForQuantity = baseData || getBaseNutritionData(foodName);
-          const defaultQuantity = baseDataForQuantity?.per100g ? '100' : (nutritionData.quantity.toString() || '1');
-
-          // Auto-fill the form with nutrition data
+          // Auto-fill the form with nutrition data (already per 100g or per unit)
           setFormData(prev => ({
             ...prev,
             calories: nutritionData.calories.toString(),
@@ -139,15 +165,15 @@ export const Foods: React.FC = () => {
             fats: nutritionData.fats?.toString() || '',
             fiber: nutritionData.fiber?.toString() || '',
             quantity: defaultQuantity,
-            // Update food name if API returned a better formatted name
             foodName: nutritionData.foodName || prev.foodName,
           }));
         } else {
-          setNutritionError('Nutrition data not found. Please enter manually.');
+          // Don't show error for static lookup - user can click "Search API" if needed
+          setNutritionError(null);
         }
       } catch (error) {
         console.error('Error fetching nutrition data:', error);
-        setNutritionError('Unable to fetch nutrition data. Please enter manually.');
+        setNutritionError(null);
       } finally {
         setNutritionLoading(false);
       }
@@ -160,25 +186,6 @@ export const Foods: React.FC = () => {
       }
     };
   }, [formData.foodName, editingFood, showModal, manualEntry]);
-
-  const loadFoods = async () => {
-    try {
-      const data = await foodAPI.getAll(selectedDate);
-      setFoods(data);
-
-      // Load stats for suggestions
-      try {
-        const statsData = await foodAPI.getStats(selectedDate);
-        setStats(statsData);
-      } catch (error) {
-        console.error('Failed to load stats:', error);
-      }
-    } catch (error) {
-      console.error('Failed to load foods:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Calculate remaining nutrients for suggestions
   const dayType = foods.length > 0 && foods.some(f => f.dayType === 'fasting') ? 'fasting' : 'normal';
@@ -270,6 +277,60 @@ export const Foods: React.FC = () => {
       fats: (Math.round(baseData.fats * multiplier * 10) / 10).toString(),
       fiber: (Math.round(baseData.fiber * multiplier * 10) / 10).toString(),
     }));
+  };
+
+  // Handle API search button click
+  const handleSearchAPI = async () => {
+    const foodName = formData.foodName.trim();
+    if (!foodName || foodName.length < 2) {
+      setNutritionError('Please enter a food name to search.');
+      return;
+    }
+
+    setNutritionLoading(true);
+    setNutritionError(null);
+
+    try {
+      // Search API with useAPI flag set to true
+      const result = await getNutritionForAutoFill(foodName, true);
+
+      if (result) {
+        const { nutritionData, isPer100g } = result;
+        
+        // Set base nutrition data
+        setBaseNutritionData({
+          calories: nutritionData.calories,
+          protein: nutritionData.protein,
+          carbs: nutritionData.carbs || 0,
+          fats: nutritionData.fats || 0,
+          fiber: nutritionData.fiber || 0,
+          per100g: isPer100g,
+        });
+
+        // Set default quantity: 100g for per100g foods, 1 for per-unit foods
+        const defaultQuantity = isPer100g ? '100' : '1';
+
+        // Auto-fill the form with nutrition data
+        setFormData(prev => ({
+          ...prev,
+          calories: nutritionData.calories.toString(),
+          protein: nutritionData.protein.toString(),
+          carbs: nutritionData.carbs?.toString() || '',
+          fats: nutritionData.fats?.toString() || '',
+          fiber: nutritionData.fiber?.toString() || '',
+          quantity: defaultQuantity,
+          // Update food name if API returned a better formatted name
+          foodName: nutritionData.foodName || prev.foodName,
+        }));
+      } else {
+        setNutritionError('Food not found in API. Try a different name or use static data.');
+      }
+    } catch (error) {
+      console.error('Error searching API:', error);
+      setNutritionError('Unable to search API. Please try again.');
+    } finally {
+      setNutritionLoading(false);
+    }
   };
 
   // Handle food suggestion selection
@@ -804,7 +865,7 @@ export const Foods: React.FC = () => {
         <div className="fixed z-50 inset-0 overflow-y-auto">
             <div className="flex items-end sm:items-center justify-center min-h-screen px-4 pt-4 pb-20 sm:pb-4 sm:pt-4">
               <div className="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onClick={() => setShowModal(false)}></div>
-              <div className="relative z-10 inline-block w-full sm:w-auto sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all max-h-[85vh] sm:max-h-[90vh] flex flex-col">
+              <div className="relative z-10 w-full sm:w-auto sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all max-h-[85vh] sm:max-h-[90vh] flex flex-col">
                 <form onSubmit={handleSubmit} className="flex flex-col max-h-[85vh] md:max-h-[90vh]">
                   <div className="bg-white px-4 pt-6 pb-4 sm:p-6 sm:pb-4 overflow-y-auto flex-1">
                     <div className="flex items-center justify-between mb-6">
@@ -834,28 +895,40 @@ export const Foods: React.FC = () => {
                               </span>
                             )}
                           </label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setManualEntry(!manualEntry);
-                              setNutritionError(null);
-                              if (!manualEntry) {
-                                // Clear auto-filled data when switching to manual
-                                setFormData(prev => ({
-                                  ...prev,
-                                  calories: '',
-                                  protein: '',
-                                }));
-                              }
-                            }}
-                            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                              manualEntry
-                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {manualEntry ? '✓ Manual Entry' : 'Auto-fill'}
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setManualEntry(!manualEntry);
+                                setNutritionError(null);
+                                if (!manualEntry) {
+                                  // Clear auto-filled data when switching to manual
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    calories: '',
+                                    protein: '',
+                                  }));
+                                }
+                              }}
+                              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                                manualEntry
+                                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              {manualEntry ? '✓ Manual Entry' : 'Auto-fill'}
+                            </button>
+                            {!manualEntry && (
+                              <button
+                                type="button"
+                                onClick={handleSearchAPI}
+                                disabled={nutritionLoading || !formData.foodName.trim()}
+                                className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {nutritionLoading ? 'Searching...' : 'Search API'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="relative" ref={suggestionRef}>
                           <input

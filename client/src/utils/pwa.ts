@@ -1,15 +1,59 @@
 // PWA Service Worker Registration
 export const registerServiceWorker = () => {
+  // Disable service worker in development to prevent caching issues
+  if (import.meta.env.DEV) {
+    // Unregister any existing service workers
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister();
+        });
+      });
+      // Clear all caches
+      if ('caches' in window) {
+        caches.keys().then((cacheNames) => {
+          return Promise.all(
+            cacheNames.map((cacheName) => {
+              return caches.delete(cacheName);
+            })
+          );
+        });
+      }
+    }
+    return;
+  }
+
+  // Production: Register service worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((registration) => {
-          console.log('SW registered: ', registration);
-        })
-        .catch((registrationError) => {
-          console.log('SW registration failed: ', registrationError);
+      // Unregister all existing service workers first to clear old caches
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister();
         });
+      }).then(() => {
+        // Clear all caches
+        if ('caches' in window) {
+          caches.keys().then((cacheNames) => {
+            return Promise.all(
+              cacheNames.map((cacheName) => {
+                return caches.delete(cacheName);
+              })
+            );
+          });
+        }
+      }).then(() => {
+        // Register new service worker
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((registration) => {
+            // Force update
+            registration.update();
+          })
+          .catch(() => {
+            // Silently fail in production
+          });
+      });
     });
   }
 };
@@ -32,7 +76,7 @@ export const setupInstallPrompt = () => {
 
 const showInstallButton = () => {
   // You can add a custom install button to your UI here
-  console.log('App can be installed');
+  // Install prompt is available
 };
 
 export const installApp = async (deferredPrompt: any) => {
@@ -42,13 +86,7 @@ export const installApp = async (deferredPrompt: any) => {
   deferredPrompt.prompt();
 
   // Wait for the user to respond to the prompt
-  const { outcome } = await deferredPrompt.userChoice;
-
-  if (outcome === 'accepted') {
-    console.log('User accepted the install prompt');
-  } else {
-    console.log('User dismissed the install prompt');
-  }
+  await deferredPrompt.userChoice;
 
   // Clear the deferredPrompt
   deferredPrompt = null;

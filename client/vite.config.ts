@@ -6,10 +6,22 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            // Add cache-busting headers to API requests
+            proxyReq.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+            proxyReq.setHeader('Pragma', 'no-cache');
+          });
+        }
       }
     }
   },
