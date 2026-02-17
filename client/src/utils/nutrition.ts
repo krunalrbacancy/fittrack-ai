@@ -349,10 +349,10 @@ export function getLocalNutritionData(
       return {
         calories: Math.round(nutrition.calories * multiplier),
         protein: Math.round(nutrition.protein * multiplier * 10) / 10,
-        carbs: nutrition.carbs ? Math.round(nutrition.carbs * multiplier * 10) / 10 : undefined,
-        fats: nutrition.fats ? Math.round(nutrition.fats * multiplier * 10) / 10 : undefined,
-        fiber: nutrition.fiber ? Math.round(nutrition.fiber * multiplier * 10) / 10 : undefined,
-        sugar: nutrition.sugar ? Math.round(nutrition.sugar * multiplier * 10) / 10 : undefined,
+        carbs: nutrition.carbs !== undefined ? Math.round(nutrition.carbs * multiplier * 10) / 10 : undefined,
+        fats: nutrition.fats !== undefined ? Math.round(nutrition.fats * multiplier * 10) / 10 : undefined,
+        fiber: nutrition.fiber !== undefined ? Math.round(nutrition.fiber * multiplier * 10) / 10 : undefined,
+        sugar: nutrition.sugar !== undefined ? Math.round(nutrition.sugar * multiplier * 10) / 10 : undefined,
         quantity: weightInGrams ? weightInGrams / 100 : quantity,
         foodName,
       };

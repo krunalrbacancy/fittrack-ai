@@ -20,7 +20,7 @@ export const Foods: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
-  const [stats, setStats] = useState({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0 });
+  const [stats, setStats] = useState({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0, totalSugar: 0 });
   const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
   const [suggestionOffsets, setSuggestionOffsets] = useState({
     breakfast: 0,
@@ -39,6 +39,7 @@ export const Foods: React.FC = () => {
     carbs: number;
     fats: number;
     fiber: number;
+    sugar: number;
     per100g: boolean;
   } | null>(null);
   const [formData, setFormData] = useState({
@@ -151,6 +152,7 @@ export const Foods: React.FC = () => {
             carbs: nutritionData.carbs || 0,
             fats: nutritionData.fats || 0,
             fiber: nutritionData.fiber || 0,
+            sugar: nutritionData.sugar || 0,
             per100g: isPer100g,
           });
 
