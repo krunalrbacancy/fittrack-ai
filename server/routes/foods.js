@@ -49,6 +49,7 @@ router.get('/stats', optionalAuth, async (req, res) => {
     const totalCarbs = foods.reduce((sum, food) => sum + (food.carbs || 0), 0);
     const totalFats = foods.reduce((sum, food) => sum + (food.fats || 0), 0);
     const totalFiber = foods.reduce((sum, food) => sum + (food.fiber || 0), 0);
+    const totalSugar = foods.reduce((sum, food) => sum + (food.sugar || 0), 0);
 
     res.json({
       totalCalories,
@@ -56,6 +57,7 @@ router.get('/stats', optionalAuth, async (req, res) => {
       totalCarbs,
       totalFats,
       totalFiber,
+      totalSugar,
       foodCount: foods.length
     });
   } catch (error) {
@@ -84,13 +86,14 @@ router.get('/weekly', optionalAuth, async (req, res) => {
     foods.forEach(food => {
       const dateKey = food.date.toISOString().split('T')[0];
       if (!dailyStats[dateKey]) {
-        dailyStats[dateKey] = { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 };
+        dailyStats[dateKey] = { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0, sugar: 0 };
       }
       dailyStats[dateKey].calories += food.calories;
       dailyStats[dateKey].protein += food.protein;
       dailyStats[dateKey].carbs += (food.carbs || 0);
       dailyStats[dateKey].fats += (food.fats || 0);
       dailyStats[dateKey].fiber += (food.fiber || 0);
+      dailyStats[dateKey].sugar += (food.sugar || 0);
     });
 
     res.json(dailyStats);

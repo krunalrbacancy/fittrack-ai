@@ -167,6 +167,10 @@ export const Dashboard: React.FC = () => {
     ? (user?.fastingFiberTarget || 22)
     : (user?.dailyFiberTarget || 28);
 
+  const sugarTarget = dayType === 'fasting'
+    ? (user?.fastingSugarTarget || 25)
+    : (user?.dailySugarTarget || 25);
+
   // Calculate recommended water: currentWeight × 35 ml
   const recommendedWater = user?.currentWeight ? Math.round(user.currentWeight * 35) : 2000;
 
@@ -175,6 +179,7 @@ export const Dashboard: React.FC = () => {
   const remainingCarbs = Math.max(0, carbsTarget - (stats.totalCarbs || 0));
   const remainingFats = Math.max(0, fatsTarget - (stats.totalFats || 0));
   const remainingFiber = Math.max(0, fiberTarget - (stats.totalFiber || 0));
+  const remainingSugar = Math.max(0, sugarTarget - (stats.totalSugar || 0));
   const remainingWater = Math.max(0, recommendedWater - waterStats.totalWater);
 
   const calorieExceeded = stats.totalCalories > calorieTarget;
@@ -188,7 +193,8 @@ export const Dashboard: React.FC = () => {
     carbs: remainingCarbs,
     fats: remainingFats,
     fiber: remainingFiber,
-  }), [remainingCalories, remainingProtein, remainingCarbs, remainingFats, remainingFiber]);
+    sugar: remainingSugar,
+  }), [remainingCalories, remainingProtein, remainingCarbs, remainingFats, remainingFiber, remainingSugar]);
 
   const breakfastSuggestions = useMemo(() => getFoodSuggestions('breakfast', remainingNutrients, suggestionOffsets.breakfast), [remainingNutrients, suggestionOffsets.breakfast]);
   const lunchSuggestions = useMemo(() => getFoodSuggestions('lunch', remainingNutrients, suggestionOffsets.lunch), [remainingNutrients, suggestionOffsets.lunch]);
@@ -434,6 +440,26 @@ export const Dashboard: React.FC = () => {
             <div className="p-4 md:p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
+                  <div className="text-2xl md:text-3xl">🍬</div>
+                </div>
+                <div className="ml-3 md:ml-5 flex-1 min-w-0">
+                  <dl>
+                    <dt className="text-xs md:text-sm font-medium text-gray-500 truncate">
+                      Sugar
+                    </dt>
+                    <dd className="text-base md:text-lg font-semibold text-gray-900 truncate">
+                      {(stats.totalSugar || 0).toFixed(1)}g / {sugarTarget}g
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow-md rounded-xl">
+            <div className="p-4 md:p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
                   <div className="text-2xl md:text-3xl">📊</div>
                 </div>
                 <div className="ml-3 md:ml-5 flex-1 min-w-0">
@@ -631,6 +657,41 @@ export const Dashboard: React.FC = () => {
             </div>
             <p className="mt-2 text-sm text-gray-600">
               {(stats.totalFiber || 0).toFixed(1)}g of {fiberTarget}g fiber
+            </p>
+          </div>
+
+          <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Sugar Progress</h3>
+            <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
+              {(() => {
+                const sugarPercentage = sugarTarget > 0 ? ((stats.totalSugar || 0) / sugarTarget) * 100 : 0;
+                const displayPercentage = Math.min(100, sugarPercentage);
+                return (
+                  <>
+                    {displayPercentage >= 10 ? (
+                      <div
+                        className="h-6 rounded-full flex items-center justify-center text-xs font-semibold bg-pink-500"
+                        style={{ width: `${displayPercentage}%` }}
+                      >
+                        {`${displayPercentage.toFixed(1)}%`}
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className="h-6 rounded-full bg-pink-500"
+                          style={{ width: `${displayPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                          {displayPercentage.toFixed(1)}%
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              {(stats.totalSugar || 0).toFixed(1)}g of {sugarTarget}g sugar
             </p>
           </div>
 

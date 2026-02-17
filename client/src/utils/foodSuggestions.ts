@@ -17,6 +17,7 @@ interface RemainingNutrients {
   carbs: number;
   fats: number;
   fiber: number;
+  sugar: number;
 }
 
 // Food database organized by category

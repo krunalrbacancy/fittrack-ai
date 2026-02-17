@@ -13,11 +13,13 @@ export interface User {
   dailyCarbsTarget?: number;
   dailyFatsTarget?: number;
   dailyFiberTarget?: number;
+  dailySugarTarget?: number;
   fastingCalorieTarget?: number;
   fastingProteinTarget?: number;
   fastingCarbsTarget?: number;
   fastingFatsTarget?: number;
   fastingFiberTarget?: number;
+  fastingSugarTarget?: number;
 }
 
 export interface FoodEntry {
@@ -28,6 +30,7 @@ export interface FoodEntry {
   carbs?: number;
   fats?: number;
   fiber?: number;
+  sugar?: number;
   quantity: number;
   date: string;
   category?: 'breakfast' | 'lunch' | 'snacks' | 'dinner';
@@ -49,6 +52,7 @@ export interface DailyStats {
   totalCarbs?: number;
   totalFats?: number;
   totalFiber?: number;
+  totalSugar?: number;
   foodCount: number;
 }
 
@@ -59,6 +63,7 @@ export interface WeeklyStats {
     carbs?: number;
     fats?: number;
     fiber?: number;
+    sugar?: number;
   };
 }
 

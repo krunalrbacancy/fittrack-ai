@@ -17,11 +17,13 @@ export const Profile: React.FC = () => {
     dailyCarbsTarget: '240',
     dailyFatsTarget: '60',
     dailyFiberTarget: '28',
+    dailySugarTarget: '25',
     fastingCalorieTarget: '1600',
     fastingProteinTarget: '70',
     fastingCarbsTarget: '170',
     fastingFatsTarget: '55',
     fastingFiberTarget: '22',
+    fastingSugarTarget: '25',
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -40,11 +42,13 @@ export const Profile: React.FC = () => {
         dailyCarbsTarget: user.dailyCarbsTarget?.toString() || '240',
         dailyFatsTarget: user.dailyFatsTarget?.toString() || '60',
         dailyFiberTarget: user.dailyFiberTarget?.toString() || '28',
+        dailySugarTarget: user.dailySugarTarget?.toString() || '25',
         fastingCalorieTarget: user.fastingCalorieTarget?.toString() || '1600',
         fastingProteinTarget: user.fastingProteinTarget?.toString() || '70',
         fastingCarbsTarget: user.fastingCarbsTarget?.toString() || '170',
         fastingFatsTarget: user.fastingFatsTarget?.toString() || '55',
         fastingFiberTarget: user.fastingFiberTarget?.toString() || '22',
+        fastingSugarTarget: user.fastingSugarTarget?.toString() || '25',
       });
     }
   }, [user]);
@@ -67,11 +71,13 @@ export const Profile: React.FC = () => {
         dailyCarbsTarget: Number(formData.dailyCarbsTarget),
         dailyFatsTarget: Number(formData.dailyFatsTarget),
         dailyFiberTarget: Number(formData.dailyFiberTarget),
+        dailySugarTarget: Number(formData.dailySugarTarget),
         fastingCalorieTarget: Number(formData.fastingCalorieTarget),
         fastingProteinTarget: Number(formData.fastingProteinTarget),
         fastingCarbsTarget: Number(formData.fastingCarbsTarget),
         fastingFatsTarget: Number(formData.fastingFatsTarget),
         fastingFiberTarget: Number(formData.fastingFiberTarget),
+        fastingSugarTarget: Number(formData.fastingSugarTarget),
       });
       setMessage('Profile updated successfully!');
       setTimeout(() => setMessage(''), 3000);
@@ -287,6 +293,18 @@ export const Profile: React.FC = () => {
                   </div>
 
                   <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Daily Sugar Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.dailySugarTarget}
+                      onChange={(e) => setFormData({ ...formData, dailySugarTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Calorie Target</label>
                     <input
                       type="number"
@@ -348,6 +366,19 @@ export const Profile: React.FC = () => {
                       className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">Fiber target on fasting days</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Sugar Target (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.fastingSugarTarget}
+                      onChange={(e) => setFormData({ ...formData, fastingSugarTarget: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Sugar target on fasting days</p>
                   </div>
                 </div>
 

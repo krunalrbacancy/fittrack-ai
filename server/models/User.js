@@ -55,6 +55,10 @@ const userSchema = new mongoose.Schema({
     type: Number, // in grams
     default: 28
   },
+  dailySugarTarget: {
+    type: Number, // in grams
+    default: 25
+  },
   fastingCalorieTarget: {
     type: Number,
     default: 1600
@@ -74,6 +78,10 @@ const userSchema = new mongoose.Schema({
   fastingFiberTarget: {
     type: Number, // in grams
     default: 22
+  },
+  fastingSugarTarget: {
+    type: Number, // in grams
+    default: 25
   }
 }, {
   timestamps: true

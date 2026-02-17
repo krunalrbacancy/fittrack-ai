@@ -20,7 +20,7 @@ export const Foods: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
-  const [stats, setStats] = useState({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0 });
+  const [stats, setStats] = useState({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0, totalSugar: 0 });
   const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
   const [suggestionOffsets, setSuggestionOffsets] = useState({
     breakfast: 0,
@@ -39,6 +39,7 @@ export const Foods: React.FC = () => {
     carbs: number;
     fats: number;
     fiber: number;
+    sugar: number;
     per100g: boolean;
   } | null>(null);
   const [formData, setFormData] = useState({
@@ -48,6 +49,7 @@ export const Foods: React.FC = () => {
     carbs: '',
     fats: '',
     fiber: '',
+    sugar: '',
     quantity: '1',
     date: getTodayDate(),
     category: 'lunch' as 'breakfast' | 'lunch' | 'snacks' | 'dinner',
@@ -150,6 +152,7 @@ export const Foods: React.FC = () => {
             carbs: nutritionData.carbs || 0,
             fats: nutritionData.fats || 0,
             fiber: nutritionData.fiber || 0,
+            sugar: nutritionData.sugar || 0,
             per100g: isPer100g,
           });
 
@@ -194,6 +197,7 @@ export const Foods: React.FC = () => {
   const carbsTarget = dayType === 'fasting' ? (user?.fastingCarbsTarget || 170) : (user?.dailyCarbsTarget || 240);
   const fatsTarget = dayType === 'fasting' ? (user?.fastingFatsTarget || 55) : (user?.dailyFatsTarget || 60);
   const fiberTarget = dayType === 'fasting' ? (user?.fastingFiberTarget || 22) : (user?.dailyFiberTarget || 28);
+  const sugarTarget = dayType === 'fasting' ? (user?.fastingSugarTarget || 25) : (user?.dailySugarTarget || 25);
 
   const remainingNutrients = useMemo(() => ({
     calories: Math.max(0, calorieTarget - stats.totalCalories),
@@ -201,7 +205,8 @@ export const Foods: React.FC = () => {
     carbs: Math.max(0, carbsTarget - (stats.totalCarbs || 0)),
     fats: Math.max(0, fatsTarget - (stats.totalFats || 0)),
     fiber: Math.max(0, fiberTarget - (stats.totalFiber || 0)),
-  }), [calorieTarget, proteinTarget, carbsTarget, fatsTarget, fiberTarget, stats]);
+    sugar: Math.max(0, sugarTarget - (stats.totalSugar || 0)),
+  }), [calorieTarget, proteinTarget, carbsTarget, fatsTarget, fiberTarget, sugarTarget, stats]);
 
   const breakfastSuggestions = useMemo(() => getMealSuggestions('breakfast', remainingNutrients, suggestionOffsets.breakfast), [remainingNutrients, suggestionOffsets.breakfast]);
   const lunchSuggestions = useMemo(() => getMealSuggestions('lunch', remainingNutrients, suggestionOffsets.lunch), [remainingNutrients, suggestionOffsets.lunch]);
@@ -236,6 +241,7 @@ export const Foods: React.FC = () => {
         carbs: suggestion.carbs,
         fats: suggestion.fats,
         fiber: suggestion.fiber,
+        sugar: suggestion.sugar || 0,
         quantity: suggestion.per100g ? quantity / 100 : quantity,
         date: selectedDate,
         category: category as any,
@@ -276,6 +282,7 @@ export const Foods: React.FC = () => {
       carbs: (Math.round(baseData.carbs * multiplier * 10) / 10).toString(),
       fats: (Math.round(baseData.fats * multiplier * 10) / 10).toString(),
       fiber: (Math.round(baseData.fiber * multiplier * 10) / 10).toString(),
+      sugar: (Math.round(baseData.sugar * multiplier * 10) / 10).toString(),
     }));
   };
 
@@ -304,6 +311,7 @@ export const Foods: React.FC = () => {
           carbs: nutritionData.carbs || 0,
           fats: nutritionData.fats || 0,
           fiber: nutritionData.fiber || 0,
+          sugar: nutritionData.sugar || 0,
           per100g: isPer100g,
         });
 
@@ -318,6 +326,7 @@ export const Foods: React.FC = () => {
           carbs: nutritionData.carbs?.toString() || '',
           fats: nutritionData.fats?.toString() || '',
           fiber: nutritionData.fiber?.toString() || '',
+          sugar: nutritionData.sugar?.toString() || '',
           quantity: defaultQuantity,
           // Update food name if API returned a better formatted name
           foodName: nutritionData.foodName || prev.foodName,
@@ -363,6 +372,7 @@ export const Foods: React.FC = () => {
               carbs: nutritionData.carbs || 0,
               fats: nutritionData.fats || 0,
               fiber: nutritionData.fiber || 0,
+              sugar: nutritionData.sugar || 0,
               per100g: false,
             });
           }
@@ -378,6 +388,7 @@ export const Foods: React.FC = () => {
             carbs: (nutritionData.carbs || 0).toString(),
             fats: (nutritionData.fats || 0).toString(),
             fiber: (nutritionData.fiber || 0).toString(),
+            sugar: (nutritionData.sugar || 0).toString(),
             quantity: defaultQuantity, // Default to 100g for weight-based, 1 for unit-based
           }));
         }
@@ -438,6 +449,7 @@ export const Foods: React.FC = () => {
           carbs: formData.carbs ? Number(formData.carbs) : 0,
           fats: formData.fats ? Number(formData.fats) : 0,
           fiber: formData.fiber ? Number(formData.fiber) : 0,
+          sugar: formData.sugar ? Number(formData.sugar) : 0,
           quantity: Number(formData.quantity),
           category: formData.category,
           dayType: formData.dayType,
@@ -450,6 +462,7 @@ export const Foods: React.FC = () => {
           carbs: formData.carbs ? Number(formData.carbs) : 0,
           fats: formData.fats ? Number(formData.fats) : 0,
           fiber: formData.fiber ? Number(formData.fiber) : 0,
+          sugar: formData.sugar ? Number(formData.sugar) : 0,
           quantity: Number(formData.quantity),
           category: formData.category,
           dayType: formData.dayType,
@@ -476,6 +489,7 @@ export const Foods: React.FC = () => {
       carbs: (food.carbs || 0).toString(),
       fats: (food.fats || 0).toString(),
       fiber: (food.fiber || 0).toString(),
+      sugar: (food.sugar || 0).toString(),
       quantity: food.quantity.toString(),
       date: formatDate(food.date),
       category: food.category || 'lunch',
@@ -527,6 +541,7 @@ export const Foods: React.FC = () => {
       carbs: '',
       fats: '',
       fiber: '',
+      sugar: '',
       quantity: '1',
       date: getTodayDate(),
       category: 'lunch',
@@ -1030,6 +1045,17 @@ export const Foods: React.FC = () => {
                             step="0.1"
                             value={formData.fiber}
                             onChange={(e) => setFormData({ ...formData, fiber: e.target.value })}
+                            className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Sugar (g)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={formData.sugar}
+                            onChange={(e) => setFormData({ ...formData, sugar: e.target.value })}
                             className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>

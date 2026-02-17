@@ -7,6 +7,7 @@ interface NutritionData {
   carbs?: number; // in grams
   fats?: number; // in grams
   fiber?: number; // in grams
+  sugar?: number; // in grams
   quantity: number;
   foodName: string;
   isPerUnit?: boolean; // true if this is per-unit (e.g., per nut), false if per-100g
@@ -142,6 +143,7 @@ export async function fetchNutritionData(
       let carbs = 0;
       let fats = 0;
       let fiber = 0;
+      let sugar = 0;
 
       if (food.foodNutrients) {
         food.foodNutrients.forEach((nutrient: any) => {
@@ -174,6 +176,10 @@ export async function fetchNutritionData(
           // Fiber, total dietary - nutrient ID 1079
           else if (nutrientId === 1079) {
             fiber = value;
+          }
+          // Sugars, total including NLEA - nutrient ID 2000
+          else if (nutrientId === 2000) {
+            sugar = value;
           }
         });
       }
@@ -255,6 +261,7 @@ export async function fetchNutritionData(
         carbs: Math.round(carbs * multiplier * 10) / 10,
         fats: Math.round(fats * multiplier * 10) / 10,
         fiber: Math.round(fiber * multiplier * 10) / 10,
+        sugar: Math.round(sugar * multiplier * 10) / 10,
         quantity: isPerUnit ? (quantity === 100 ? 1 : quantity) : quantity, // For nuts from API (100g), return 1; otherwise return actual quantity
         foodName: food.description || foodName,
         isPerUnit, // Add flag to indicate if this is per-unit
@@ -273,47 +280,47 @@ export async function fetchNutritionData(
  * This can be used if API is not available
  */
 // Nutrition data per 100g or per unit (as specified)
-const COMMON_FOODS: Record<string, { calories: number; protein: number; carbs?: number; fats?: number; fiber?: number; per100g?: boolean }> = {
+const COMMON_FOODS: Record<string, { calories: number; protein: number; carbs?: number; fats?: number; fiber?: number; sugar?: number; per100g?: boolean }> = {
   // Common foods (per unit)
-  'egg': { calories: 70, protein: 6, carbs: 0.4, fats: 5, fiber: 0, per100g: false },
-  'boiled egg': { calories: 70, protein: 6, carbs: 0.4, fats: 5, fiber: 0, per100g: false },
-  'eggs': { calories: 70, protein: 6, carbs: 0.4, fats: 5, fiber: 0, per100g: false },
-  'omelet': { calories: 154, protein: 10.6, carbs: 1.1, fats: 12, fiber: 0, per100g: false },
-  'omlet': { calories: 154, protein: 10.6, carbs: 1.1, fats: 12, fiber: 0, per100g: false },
-  'banana': { calories: 105, protein: 1.3, carbs: 27, fats: 0.4, fiber: 3.1, per100g: false },
-  'apple': { calories: 95, protein: 0.5, carbs: 25, fats: 0.3, fiber: 4.4, per100g: false },
-  'chicken breast': { calories: 165, protein: 31, carbs: 0, fats: 3.6, fiber: 0, per100g: true },
-  'chicken': { calories: 165, protein: 31, carbs: 0, fats: 3.6, fiber: 0, per100g: true },
-  'bread': { calories: 75, protein: 2.5, carbs: 14, fats: 1, fiber: 0.8, per100g: false },
-  'milk': { calories: 150, protein: 8, carbs: 12, fats: 8, fiber: 0, per100g: false },
-  'yogurt': { calories: 150, protein: 13, carbs: 11, fats: 4, fiber: 0, per100g: false },
-  'oatmeal': { calories: 150, protein: 5, carbs: 27, fats: 3, fiber: 4, per100g: false },
-  'salmon': { calories: 206, protein: 22, carbs: 0, fats: 12, fiber: 0, per100g: true },
-  'broccoli': { calories: 55, protein: 3.7, carbs: 11, fats: 0.6, fiber: 2.6, per100g: true },
-  'spinach': { calories: 23, protein: 2.9, carbs: 3.6, fats: 0.4, fiber: 2.2, per100g: true },
+  'egg': { calories: 70, protein: 6, carbs: 0.4, fats: 5, fiber: 0, sugar: 0.2, per100g: false },
+  'boiled egg': { calories: 70, protein: 6, carbs: 0.4, fats: 5, fiber: 0, sugar: 0.2, per100g: false },
+  'eggs': { calories: 70, protein: 6, carbs: 0.4, fats: 5, fiber: 0, sugar: 0.2, per100g: false },
+  'omelet': { calories: 154, protein: 10.6, carbs: 1.1, fats: 12, fiber: 0, sugar: 0.5, per100g: false },
+  'omlet': { calories: 154, protein: 10.6, carbs: 1.1, fats: 12, fiber: 0, sugar: 0.5, per100g: false },
+  'banana': { calories: 105, protein: 1.3, carbs: 27, fats: 0.4, fiber: 3.1, sugar: 14, per100g: false },
+  'apple': { calories: 95, protein: 0.5, carbs: 25, fats: 0.3, fiber: 4.4, sugar: 19, per100g: false },
+  'chicken breast': { calories: 165, protein: 31, carbs: 0, fats: 3.6, fiber: 0, sugar: 0, per100g: true },
+  'chicken': { calories: 165, protein: 31, carbs: 0, fats: 3.6, fiber: 0, sugar: 0, per100g: true },
+  'bread': { calories: 75, protein: 2.5, carbs: 14, fats: 1, fiber: 0.8, sugar: 1.5, per100g: false },
+  'milk': { calories: 150, protein: 8, carbs: 12, fats: 8, fiber: 0, sugar: 12, per100g: false },
+  'yogurt': { calories: 150, protein: 13, carbs: 11, fats: 4, fiber: 0, sugar: 11, per100g: false },
+  'oatmeal': { calories: 150, protein: 5, carbs: 27, fats: 3, fiber: 4, sugar: 1, per100g: false },
+  'salmon': { calories: 206, protein: 22, carbs: 0, fats: 12, fiber: 0, sugar: 0, per100g: true },
+  'broccoli': { calories: 55, protein: 3.7, carbs: 11, fats: 0.6, fiber: 2.6, sugar: 1.5, per100g: true },
+  'spinach': { calories: 23, protein: 2.9, carbs: 3.6, fats: 0.4, fiber: 2.2, sugar: 0.4, per100g: true },
 
   // Indian foods (per 100g for weight-based entries)
-  'curd': { calories: 98, protein: 11, carbs: 3.4, fats: 4.3, fiber: 0, per100g: true },
-  'dahi': { calories: 98, protein: 11, carbs: 3.4, fats: 4.3, fiber: 0, per100g: true },
-  'roti': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, per100g: false }, // Per roti (~30g)
-  'chapati': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, per100g: false }, // Per chapati (~30g)
-  'phulka': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, per100g: false }, // Per phulka (~30g)
-  'sabji': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, per100g: true },
-  'sabzi': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, per100g: true },
-  'vegetable': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, per100g: true },
-  'paneer chilla': { calories: 265, protein: 18, carbs: 12, fats: 15, fiber: 1, per100g: true },
-  'paneer chila': { calories: 265, protein: 18, carbs: 12, fats: 15, fiber: 1, per100g: true },
-  'paneer': { calories: 265, protein: 18, carbs: 3.5, fats: 20, fiber: 0, per100g: true },
-  'moong chilla': { calories: 196, protein: 13.2, carbs: 18, fats: 6, fiber: 5, per100g: true },
-  'moong chila': { calories: 196, protein: 13.2, carbs: 18, fats: 6, fiber: 5, per100g: true },
-  'moong dal chilla': { calories: 196, protein: 13.2, carbs: 18, fats: 6, fiber: 5, per100g: true },
-  'rice': { calories: 130, protein: 2.7, carbs: 28, fats: 0.3, fiber: 0.4, per100g: true },
-  'dal': { calories: 116, protein: 6.8, carbs: 20, fats: 0.4, fiber: 7.9, per100g: true },
-  'lentil': { calories: 116, protein: 6.8, carbs: 20, fats: 0.4, fiber: 7.9, per100g: true },
-  'chana': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
-  'chickpea': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
-  'chickpeas': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
-  'chole': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, per100g: true },
+  'curd': { calories: 98, protein: 11, carbs: 3.4, fats: 4.3, fiber: 0, sugar: 3.4, per100g: true },
+  'dahi': { calories: 98, protein: 11, carbs: 3.4, fats: 4.3, fiber: 0, sugar: 3.4, per100g: true },
+  'roti': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, sugar: 0.2, per100g: false }, // Per roti (~30g)
+  'chapati': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, sugar: 0.2, per100g: false }, // Per chapati (~30g)
+  'phulka': { calories: 85, protein: 2.3, carbs: 13, fats: 2.6, fiber: 0.8, sugar: 0.2, per100g: false }, // Per phulka (~30g)
+  'sabji': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, sugar: 2, per100g: true },
+  'sabzi': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, sugar: 2, per100g: true },
+  'vegetable': { calories: 80, protein: 2.5, carbs: 12, fats: 2, fiber: 3, sugar: 2, per100g: true },
+  'paneer chilla': { calories: 265, protein: 18, carbs: 12, fats: 15, fiber: 1, sugar: 1, per100g: true },
+  'paneer chila': { calories: 265, protein: 18, carbs: 12, fats: 15, fiber: 1, sugar: 1, per100g: true },
+  'paneer': { calories: 265, protein: 18, carbs: 3.5, fats: 20, fiber: 0, sugar: 0, per100g: true },
+  'moong chilla': { calories: 196, protein: 13.2, carbs: 18, fats: 6, fiber: 5, sugar: 1, per100g: true },
+  'moong chila': { calories: 196, protein: 13.2, carbs: 18, fats: 6, fiber: 5, sugar: 1, per100g: true },
+  'moong dal chilla': { calories: 196, protein: 13.2, carbs: 18, fats: 6, fiber: 5, sugar: 1, per100g: true },
+  'rice': { calories: 130, protein: 2.7, carbs: 28, fats: 0.3, fiber: 0.4, sugar: 0.1, per100g: true },
+  'dal': { calories: 116, protein: 6.8, carbs: 20, fats: 0.4, fiber: 7.9, sugar: 0.5, per100g: true },
+  'lentil': { calories: 116, protein: 6.8, carbs: 20, fats: 0.4, fiber: 7.9, sugar: 0.5, per100g: true },
+  'chana': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, sugar: 1, per100g: true },
+  'chickpea': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, sugar: 1, per100g: true },
+  'chickpeas': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, sugar: 1, per100g: true },
+  'chole': { calories: 164, protein: 8.9, carbs: 27, fats: 2.6, fiber: 7.6, sugar: 1, per100g: true },
 };
 
 /**
@@ -342,9 +349,10 @@ export function getLocalNutritionData(
       return {
         calories: Math.round(nutrition.calories * multiplier),
         protein: Math.round(nutrition.protein * multiplier * 10) / 10,
-        carbs: nutrition.carbs ? Math.round(nutrition.carbs * multiplier * 10) / 10 : undefined,
-        fats: nutrition.fats ? Math.round(nutrition.fats * multiplier * 10) / 10 : undefined,
-        fiber: nutrition.fiber ? Math.round(nutrition.fiber * multiplier * 10) / 10 : undefined,
+        carbs: nutrition.carbs !== undefined ? Math.round(nutrition.carbs * multiplier * 10) / 10 : undefined,
+        fats: nutrition.fats !== undefined ? Math.round(nutrition.fats * multiplier * 10) / 10 : undefined,
+        fiber: nutrition.fiber !== undefined ? Math.round(nutrition.fiber * multiplier * 10) / 10 : undefined,
+        sugar: nutrition.sugar !== undefined ? Math.round(nutrition.sugar * multiplier * 10) / 10 : undefined,
         quantity: weightInGrams ? weightInGrams / 100 : quantity,
         foodName,
       };
@@ -390,6 +398,7 @@ export function getBaseNutritionData(foodName: string): {
   carbs: number;
   fats: number;
   fiber: number;
+  sugar: number;
   per100g: boolean;
 } | null {
   const normalizedName = foodName.toLowerCase().trim();
@@ -403,6 +412,7 @@ export function getBaseNutritionData(foodName: string): {
         carbs: nutrition.carbs || 0,
         fats: nutrition.fats || 0,
         fiber: nutrition.fiber || 0,
+        sugar: nutrition.sugar || 0,
         per100g: nutrition.per100g || false,
       };
     }
