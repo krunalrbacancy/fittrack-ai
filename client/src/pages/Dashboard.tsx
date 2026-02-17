@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { foodAPI, waterAPI } from '../utils/api';
 import { DailyStats, FoodEntry, WaterStats } from '../types';
@@ -8,7 +8,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { getFoodSuggestions, FOOD_BY_CATEGORY } from '../utils/foodSuggestions';
 
 export const Dashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [stats, setStats] = useState<DailyStats>({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0, foodCount: 0 });
   const [waterStats, setWaterStats] = useState<WaterStats>({ totalWater: 0, logCount: 0 });
   const [foods, setFoods] = useState<FoodEntry[]>([]);
@@ -26,25 +26,7 @@ export const Dashboard: React.FC = () => {
     dinner: 0,
   });
 
-  useEffect(() => {
-    loadData();
-  }, [selectedDate]);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        loadStats(),
-        loadWaterStats(),
-        loadFoods(),
-        loadWeeklyStats()
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const data = await foodAPI.getStats(selectedDate);
       setStats(data);
@@ -55,9 +37,9 @@ export const Dashboard: React.FC = () => {
         setStats({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0, foodCount: 0 });
       }
     }
-  };
+  }, [selectedDate]);
 
-  const loadWaterStats = async () => {
+  const loadWaterStats = useCallback(async () => {
     try {
       const data = await waterAPI.getStats(selectedDate);
       setWaterStats(data);
@@ -68,9 +50,9 @@ export const Dashboard: React.FC = () => {
         setWaterStats({ totalWater: 0, logCount: 0 });
       }
     }
-  };
+  }, [selectedDate]);
 
-  const loadFoods = async () => {
+  const loadFoods = useCallback(async () => {
     try {
       const data = await foodAPI.getAll(selectedDate);
       setFoods(data);
@@ -81,9 +63,9 @@ export const Dashboard: React.FC = () => {
         setFoods([]);
       }
     }
-  };
+  }, [selectedDate]);
 
-  const loadWeeklyStats = async () => {
+  const loadWeeklyStats = useCallback(async () => {
     try {
       const data = await foodAPI.getWeekly();
       const weekData = Object.entries(data).map(([date, values]: [string, any]) => ({
@@ -95,7 +77,39 @@ export const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Failed to load weekly stats:', error);
     }
-  };
+  }, []);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        loadStats(),
+        loadWaterStats(),
+        loadFoods(),
+        loadWeeklyStats()
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadStats, loadWaterStats, loadFoods, loadWeeklyStats]);
+
+  useEffect(() => {
+    // Only load data when auth is ready
+    if (!authLoading) {
+      loadData();
+    }
+  }, [loadData, authLoading, user]);
+
+  // Refresh data when page becomes visible (user switches back to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [loadData]);
 
   const addWater = async (amount: number) => {
     if (waterLoading) return; // Prevent multiple clicks
@@ -216,11 +230,8 @@ export const Dashboard: React.FC = () => {
         dayType: dayType,
       } as any);
 
-      // Reload data
-      await Promise.all([
-        loadStats(),
-        loadFoods(),
-      ]);
+      // Reload all data
+      await loadData();
     } catch (error) {
       console.error('Failed to add food suggestion:', error);
       alert('Failed to add food. Please try again.');
@@ -444,20 +455,36 @@ export const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Calories Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6 relative">
-              <div
-                className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
-                  calorieExceeded ? 'bg-red-500' : 'bg-green-500'
-                }`}
-                style={{ width: `${Math.min(100, caloriePercentage)}%` }}
-              >
-                {caloriePercentage >= 10 && caloriePercentage.toFixed(1)}%
-              </div>
-              {caloriePercentage < 10 && (
-                <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
-                  {caloriePercentage.toFixed(1)}%
-                </div>
-              )}
+            <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
+              {(() => {
+                const displayPercentage = Math.min(100, caloriePercentage);
+                return (
+                  <>
+                    {displayPercentage >= 10 ? (
+                      <div
+                        className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                          calorieExceeded ? 'bg-red-500' : 'bg-green-500'
+                        }`}
+                        style={{ width: `${displayPercentage}%` }}
+                      >
+                        {`${displayPercentage.toFixed(1)}%`}
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className={`h-6 rounded-full ${
+                            calorieExceeded ? 'bg-red-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${displayPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                          {displayPercentage.toFixed(1)}%
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <p className="mt-2 text-sm text-gray-600">
               {stats.totalCalories} of {calorieTarget} calories
@@ -466,20 +493,36 @@ export const Dashboard: React.FC = () => {
 
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Protein Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6 relative">
-              <div
-                className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
-                  proteinDeficit ? 'bg-yellow-500' : 'bg-blue-500'
-                }`}
-                style={{ width: `${Math.min(100, proteinPercentage)}%` }}
-              >
-                {proteinPercentage >= 10 && proteinPercentage.toFixed(1)}%
-              </div>
-              {proteinPercentage < 10 && (
-                <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
-                  {proteinPercentage.toFixed(1)}%
-                </div>
-              )}
+            <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
+              {(() => {
+                const displayPercentage = Math.min(100, proteinPercentage);
+                return (
+                  <>
+                    {displayPercentage >= 10 ? (
+                      <div
+                        className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                          proteinDeficit ? 'bg-yellow-500' : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${displayPercentage}%` }}
+                      >
+                        {`${displayPercentage.toFixed(1)}%`}
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className={`h-6 rounded-full ${
+                            proteinDeficit ? 'bg-yellow-500' : 'bg-blue-500'
+                          }`}
+                          style={{ width: `${displayPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                          {displayPercentage.toFixed(1)}%
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <p className="mt-2 text-sm text-gray-600">
               {stats.totalProtein.toFixed(1)}g of {proteinTarget}g protein
@@ -488,7 +531,7 @@ export const Dashboard: React.FC = () => {
 
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Carbs Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6 relative">
+            <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
               {(() => {
                 const carbsPercentage = carbsTarget > 0 ? ((stats.totalCarbs || 0) / carbsTarget) * 100 : 0;
                 const displayPercentage = Math.min(100, carbsPercentage);
@@ -523,7 +566,7 @@ export const Dashboard: React.FC = () => {
 
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Fats Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6 relative">
+            <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
               {(() => {
                 const fatsPercentage = fatsTarget > 0 ? ((stats.totalFats || 0) / fatsTarget) * 100 : 0;
                 const displayPercentage = Math.min(100, fatsPercentage);
@@ -558,7 +601,7 @@ export const Dashboard: React.FC = () => {
 
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Fiber Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6 relative">
+            <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
               {(() => {
                 const fiberPercentage = fiberTarget > 0 ? ((stats.totalFiber || 0) / fiberTarget) * 100 : 0;
                 const displayPercentage = Math.min(100, fiberPercentage);
@@ -593,20 +636,36 @@ export const Dashboard: React.FC = () => {
 
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Water Progress</h3>
-            <div className="w-full bg-gray-200 rounded-full h-6 relative">
-              <div
-                className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
-                  waterDeficit ? 'bg-cyan-500' : 'bg-blue-600'
-                }`}
-                style={{ width: `${Math.min(100, waterPercentage)}%` }}
-              >
-                {waterPercentage >= 10 && waterPercentage.toFixed(1)}%
-              </div>
-              {waterPercentage < 10 && (
-                <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
-                  {waterPercentage.toFixed(1)}%
-                </div>
-              )}
+            <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
+              {(() => {
+                const displayPercentage = Math.min(100, waterPercentage);
+                return (
+                  <>
+                    {displayPercentage >= 10 ? (
+                      <div
+                        className={`h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                          waterDeficit ? 'bg-cyan-500' : 'bg-blue-600'
+                        }`}
+                        style={{ width: `${displayPercentage}%` }}
+                      >
+                        {`${displayPercentage.toFixed(1)}%`}
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className={`h-6 rounded-full ${
+                            waterDeficit ? 'bg-cyan-500' : 'bg-blue-600'
+                          }`}
+                          style={{ width: `${displayPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-start pl-2 text-xs font-semibold text-gray-700">
+                          {displayPercentage.toFixed(1)}%
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <p className="mt-2 text-sm text-gray-600">
               {waterStats.totalWater}ml of {recommendedWater}ml water

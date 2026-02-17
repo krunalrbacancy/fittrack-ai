@@ -23,6 +23,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const initAuth = async () => {
+      // CRITICAL FIX: In development, clear stale localStorage on every load to prevent state issues
+      if (import.meta.env.DEV) {
+        const lastClear = localStorage.getItem('_lastClear');
+        const now = Date.now();
+        // Clear localStorage every 5 minutes in dev to prevent stale state
+        if (!lastClear || (now - parseInt(lastClear)) > 300000) {
+          localStorage.removeItem('user'); // Keep token for auto-login
+          localStorage.setItem('_lastClear', now.toString());
+        }
+      }
+      
       try {
         const token = localStorage.getItem('token');
         const storedUser = authAPI.getStoredUser();

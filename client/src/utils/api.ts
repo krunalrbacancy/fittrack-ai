@@ -8,8 +8,11 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
   },
   timeout: 10000, // 10 seconds timeout
+  params: {}, // Will be populated per request with cache-busting
 });
 
 // Add response interceptor for better error handling
@@ -40,6 +43,10 @@ api.interceptors.response.use(
 
 // Add token to requests and check expiration
 api.interceptors.request.use((config) => {
+  // Add cache-busting parameter to GET requests only to prevent browser caching
+  if (config.method === 'get' || !config.method) {
+    config.params = { ...config.params, _t: Date.now() };
+  }
   const token = localStorage.getItem('token');
   if (token) {
     // Check if token is expired before making request
