@@ -169,5 +169,73 @@ export const waterAPI = {
   },
 };
 
+// Waist API
+export const waistAPI = {
+  getAll: async (limit?: number) => {
+    const response = await api.get('/waist', { params: { limit } });
+    return response.data;
+  },
+  create: async (data: { waist: number; date?: string; notes?: string }) => {
+    const response = await api.post('/waist', data);
+    return response.data;
+  },
+  update: async (id: string, data: Partial<{ waist: number; date?: string; notes?: string }>) => {
+    const response = await api.put(`/waist/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/waist/${id}`);
+  },
+};
+
+// Workout API
+export const workoutAPI = {
+  getAll: async (limit?: number) => {
+    const response = await api.get('/workout', { params: { limit } });
+    return response.data;
+  },
+  create: async (data: { date: string; workoutType?: string; duration?: number; notes?: string }) => {
+    const response = await api.post('/workout', data);
+    return response.data;
+  },
+  update: async (id: string, data: Partial<{ date?: string; workoutType?: string; duration?: number; notes?: string }>) => {
+    const response = await api.put(`/workout/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/workout/${id}`);
+  },
+};
+
+// Steps API
+export const stepsAPI = {
+  getAll: async (limit?: number) => {
+    const response = await api.get('/steps', { params: { limit } });
+    return response.data;
+  },
+  create: async (data: { steps: number; date?: string; notes?: string }) => {
+    const response = await api.post('/steps', data);
+    return response.data;
+  },
+  update: async (id: string, data: Partial<{ steps: number; date?: string; notes?: string }>) => {
+    const response = await api.put(`/steps/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/steps/${id}`);
+  },
+};
+
+// Reports API
+export const reportsAPI = {
+  getWeekly: async (startDate?: string, endDate?: string) => {
+    const params: any = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    const response = await api.get('/reports/weekly', { params });
+    return response.data;
+  },
+};
+
 export default api;
 

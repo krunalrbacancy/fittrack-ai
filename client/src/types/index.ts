@@ -79,3 +79,28 @@ export interface WaterStats {
   logCount: number;
 }
 
+export interface WaistLog {
+  _id: string;
+  waist: number; // in cm
+  date: string;
+  notes?: string;
+  userId?: string;
+}
+
+export interface WorkoutLog {
+  _id: string;
+  date: string;
+  workoutType?: string;
+  duration?: number; // in minutes
+  notes?: string;
+  userId?: string;
+}
+
+export interface StepsLog {
+  _id: string;
+  steps: number;
+  date: string;
+  notes?: string;
+  userId?: string;
+}
+

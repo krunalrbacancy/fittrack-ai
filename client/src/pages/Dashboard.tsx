@@ -19,6 +19,7 @@ export const Dashboard: React.FC = () => {
   const [waterLoading, setWaterLoading] = useState(false);
   const [waterAddingAmount, setWaterAddingAmount] = useState<number | null>(null);
   const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [suggestionOffsets, setSuggestionOffsets] = useState({
     breakfast: 0,
     lunch: 0,
@@ -100,16 +101,14 @@ export const Dashboard: React.FC = () => {
     }
   }, [loadData, authLoading, user]);
 
-  // Refresh data when page becomes visible (user switches back to tab)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadData();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadData]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadData();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const addWater = async (amount: number) => {
     if (waterLoading) return; // Prevent multiple clicks
@@ -273,6 +272,21 @@ export const Dashboard: React.FC = () => {
                     Fasting Day
                   </span>
                 )}
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="ml-auto sm:ml-0 p-2 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh data"
+                >
+                  <svg 
+                    className={`w-5 h-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
               </div>
               <p className="text-sm text-gray-600">
                 Track your calories, protein, and water intake
