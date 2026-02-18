@@ -7,6 +7,10 @@ import userRoutes from './routes/users.js';
 import foodRoutes from './routes/foods.js';
 import weightRoutes from './routes/weight.js';
 import waterRoutes from './routes/water.js';
+import waistRoutes from './routes/waist.js';
+import workoutRoutes from './routes/workout.js';
+import stepsRoutes from './routes/steps.js';
+import reportsRoutes from './routes/reports.js';
 
 dotenv.config();
 
@@ -26,6 +30,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/foods', foodRoutes);
 app.use('/api/weight', weightRoutes);
 app.use('/api/water', waterRoutes);
+app.use('/api/waist', waistRoutes);
+app.use('/api/workout', workoutRoutes);
+app.use('/api/steps', stepsRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

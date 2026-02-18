@@ -20,6 +20,7 @@ export const Foods: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0, totalFiber: 0, totalSugar: 0 });
   const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
   const [suggestionOffsets, setSuggestionOffsets] = useState({
@@ -86,16 +87,14 @@ export const Foods: React.FC = () => {
     }
   }, [loadFoods, authLoading]);
 
-  // Refresh data when page becomes visible (user switches back to tab)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadFoods();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadFoods]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadFoods();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Update suggestions when food name changes
   useEffect(() => {
@@ -167,6 +166,7 @@ export const Foods: React.FC = () => {
             carbs: nutritionData.carbs?.toString() || '',
             fats: nutritionData.fats?.toString() || '',
             fiber: nutritionData.fiber?.toString() || '',
+            sugar: nutritionData.sugar?.toString() || '0',
             quantity: defaultQuantity,
             foodName: nutritionData.foodName || prev.foodName,
           }));
@@ -615,9 +615,26 @@ export const Foods: React.FC = () => {
     <Layout>
       <div className="w-full pb-12 md:pb-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 md:mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Food Entries</h1>
-            <p className="mt-1 text-sm text-gray-600">Manage your daily food intake</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Food Entries</h1>
+              <p className="mt-1 text-sm text-gray-600">Manage your daily food intake</p>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Refresh data"
+            >
+              <svg 
+                className={`w-5 h-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
           </div>
           <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 w-full sm:w-auto">
             <input
@@ -836,6 +853,7 @@ export const Foods: React.FC = () => {
                                 {food.carbs !== undefined && food.carbs > 0 && <span>Carbs: {food.carbs}g</span>}
                                 {food.fats !== undefined && food.fats > 0 && <span>Fats: {food.fats}g</span>}
                                 {food.fiber !== undefined && food.fiber > 0 && <span>Fiber: {food.fiber}g</span>}
+                                {food.sugar !== undefined && food.sugar > 0 && <span>Sugar: {food.sugar}g</span>}
                                 <span>Qty: {food.quantity}</span>
                                 {food.dayType && (
                                   <span className={`capitalize px-2 py-0.5 rounded text-xs ${

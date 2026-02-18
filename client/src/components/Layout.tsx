@@ -20,7 +20,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/foods', label: 'Foods', icon: '🍽️' },
-    { path: '/weight', label: 'Weight', icon: '⚖️' },
+    { path: '/tracking', label: 'Tracking', icon: '📊' },
+    { path: '/reports', label: 'Reports', icon: '📈' },
     { path: '/profile', label: 'Profile', icon: '👤' },
   ];
 

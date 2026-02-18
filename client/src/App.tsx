@@ -4,8 +4,9 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Foods } from './pages/Foods';
-import { Weight } from './pages/Weight';
+import { Tracking } from './pages/Tracking';
 import { Profile } from './pages/Profile';
+import { Reports } from './pages/Reports';
 
 function App() {
   return (
@@ -16,7 +17,8 @@ function App() {
             <Route path="/" element={<Landing key="landing" />} />
             <Route path="/dashboard" element={<Dashboard key="dashboard" />} />
             <Route path="/foods" element={<Foods key="foods" />} />
-            <Route path="/weight" element={<Weight key="weight" />} />
+            <Route path="/tracking" element={<Tracking key="tracking" />} />
+            <Route path="/reports" element={<Reports key="reports" />} />
             <Route path="/profile" element={<Profile key="profile" />} />
           </Routes>
         </Router>
