@@ -76,7 +76,7 @@ router.get('/weekly', async (req, res) => {
     }).sort({ date: 1 });
 
     // Get user goals
-    const user = await User.findById(req.user._id).select('targetWeight dailyProteinTarget dailyCalorieTarget');
+    const user = await User.findById(req.user._id).select('targetWeight targetWaist dailyProteinTarget dailyCalorieTarget');
 
     // Helper function to find closest log to a specific date
     const findClosestLog = (logs, targetDate) => {
