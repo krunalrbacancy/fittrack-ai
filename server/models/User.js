@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema({
     type: Number, // in kg
     default: null
   },
+  targetWaist: {
+    type: Number, // in cm
+    default: null
+  },
   goal: {
     type: String,
     default: 'Reduce Belly Fat'

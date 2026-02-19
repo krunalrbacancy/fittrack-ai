@@ -7,6 +7,7 @@ export interface User {
   height: number | null;
   currentWeight: number | null;
   targetWeight: number | null;
+  targetWaist: number | null;
   goal: string;
   dailyCalorieTarget: number;
   dailyProteinTarget: number;
