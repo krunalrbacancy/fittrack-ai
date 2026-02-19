@@ -27,6 +27,7 @@ interface WeeklyReport {
   waistChange: ChangeData | null;
   waistTrend: TrendData[];
   waistStatus: 'improving' | 'needsAttention' | 'stable';
+  waistGoalProgress: number | null;
   proteinStart: number;
   proteinEnd: number;
   proteinChange: ChangeData | null;
@@ -569,8 +570,10 @@ export const Reports: React.FC = () => {
                   report.waistChange,
                   report.waistTrend,
                   report.waistStatus,
-                  null,
-                  '#10b981'
+                  report.waistGoalProgress,
+                  '#10b981',
+                  user?.targetWaist ? 'Waist Goal' : undefined,
+                  user?.targetWaist || undefined
                 )}
               </div>
             </div>

@@ -197,12 +197,15 @@ export const Tracking: React.FC = () => {
   };
 
   // Calculate stats
-  const currentWeight = user?.currentWeight || weights[0]?.weight || 0;
+  // Use the most recent weight log entry (weights are sorted by date descending)
+  const currentWeight = weights.length > 0 ? weights[0]?.weight : (user?.currentWeight || 0);
   const targetWeight = user?.targetWeight || 0;
   const height = user?.height || 0;
   const bmi = calculateBMI(currentWeight, height);
   const weightDifference = currentWeight - targetWeight;
-  const currentWaist = waistLogs[0]?.waist || 0;
+  const currentWaist = waistLogs.length > 0 ? waistLogs[0]?.waist : 0;
+  const targetWaist = user?.targetWaist || 0;
+  const waistDifference = currentWaist - targetWaist;
   const workoutDays = new Set(workoutLogs.map(log => new Date(log.date).toISOString().split('T')[0])).size;
   const avgSteps = stepsLogs.length > 0 ? Math.round(stepsLogs.reduce((sum, log) => sum + log.steps, 0) / stepsLogs.length) : 0;
 
@@ -271,11 +274,23 @@ export const Tracking: React.FC = () => {
         );
       case 'waist':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-5">
               <dt className="text-xs md:text-sm font-medium text-gray-500">Current Waist</dt>
               <dd className="mt-1 text-xl md:text-3xl font-semibold text-gray-900">
                 {currentWaist > 0 ? `${currentWaist} cm` : 'N/A'}
+              </dd>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-5">
+              <dt className="text-xs md:text-sm font-medium text-gray-500">Target Waist</dt>
+              <dd className="mt-1 text-xl md:text-3xl font-semibold text-gray-900">
+                {targetWaist > 0 ? `${targetWaist} cm` : 'N/A'}
+              </dd>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-5">
+              <dt className="text-xs md:text-sm font-medium text-gray-500">Difference</dt>
+              <dd className={`mt-1 text-xl md:text-3xl font-semibold ${waistDifference > 0 ? 'text-red-600' : waistDifference < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                {targetWaist > 0 && currentWaist > 0 ? `${waistDifference > 0 ? '+' : ''}${waistDifference.toFixed(1)} cm` : 'N/A'}
               </dd>
             </div>
           </div>
@@ -697,7 +712,7 @@ export const Tracking: React.FC = () => {
 
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1 mb-6">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-nowrap gap-1 md:gap-2 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -705,14 +720,14 @@ export const Tracking: React.FC = () => {
                   setActiveTab(tab.id);
                   closeModal();
                 }}
-                className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-2 md:py-3 rounded-lg font-medium transition-all text-xs md:text-base ${
                   activeTab === tab.id
                     ? `${tab.activeClass} shadow-sm`
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <span className="text-xl">{tab.icon}</span>
-                <span>{tab.label}</span>
+                <span className="text-base md:text-xl">{tab.icon}</span>
+                <span className="truncate">{tab.label}</span>
               </button>
             ))}
           </div>

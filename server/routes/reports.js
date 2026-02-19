@@ -473,6 +473,27 @@ router.get('/weekly', async (req, res) => {
       ? Math.min(100, (avgProtein / user.dailyProteinTarget) * 100)
       : null;
 
+    // Waist goal progress calculation (similar to weight)
+    let waistGoalProgress = null;
+    if (user.targetWaist && waistStart !== null && waistEnd !== null) {
+      const isLosing = waistStart > user.targetWaist;
+      const totalNeeded = Math.abs(waistStart - user.targetWaist);
+      const progressMade = Math.abs(waistStart - waistEnd);
+      
+      // Check if moving in correct direction
+      const movingCorrectly = isLosing 
+        ? (waistEnd < waistStart) 
+        : (waistEnd > waistStart);
+      
+      if (totalNeeded > 0 && movingCorrectly) {
+        waistGoalProgress = Math.min(100, (progressMade / totalNeeded) * 100);
+      } else if (waistStart === user.targetWaist) {
+        waistGoalProgress = 100;
+      } else {
+        waistGoalProgress = 0;
+      }
+    }
+
     res.json({
       weightStart,
       weightEnd,
@@ -485,6 +506,7 @@ router.get('/weekly', async (req, res) => {
       waistChange,
       waistTrend,
       waistStatus: getStatus(waistChange, true),
+      waistGoalProgress,
       proteinStart,
       proteinEnd,
       proteinChange,

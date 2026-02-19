@@ -11,6 +11,7 @@ export const Profile: React.FC = () => {
     height: '',
     currentWeight: '',
     targetWeight: '',
+    targetWaist: '',
     goal: 'Reduce Belly Fat',
     dailyCalorieTarget: '2000',
     dailyProteinTarget: '90',
@@ -36,6 +37,7 @@ export const Profile: React.FC = () => {
         height: user.height?.toString() || '',
         currentWeight: user.currentWeight?.toString() || '',
         targetWeight: user.targetWeight?.toString() || '',
+        targetWaist: user.targetWaist?.toString() || '',
         goal: user.goal || 'Reduce Belly Fat',
         dailyCalorieTarget: user.dailyCalorieTarget?.toString() || '2000',
         dailyProteinTarget: user.dailyProteinTarget?.toString() || '90',
@@ -65,6 +67,7 @@ export const Profile: React.FC = () => {
         height: formData.height ? Number(formData.height) : null,
         currentWeight: formData.currentWeight ? Number(formData.currentWeight) : null,
         targetWeight: formData.targetWeight ? Number(formData.targetWeight) : null,
+        targetWaist: formData.targetWaist ? Number(formData.targetWaist) : null,
         goal: formData.goal,
         dailyCalorieTarget: Number(formData.dailyCalorieTarget),
         dailyProteinTarget: Number(formData.dailyProteinTarget),
@@ -145,6 +148,12 @@ export const Profile: React.FC = () => {
                     <p className="text-sm md:text-lg font-medium text-gray-900">{user.targetWeight} kg</p>
                   </div>
                 )}
+                {user?.targetWaist && (
+                  <div>
+                    <p className="text-xs md:text-sm text-gray-500">Target Waist</p>
+                    <p className="text-sm md:text-lg font-medium text-gray-900">{user.targetWaist} cm</p>
+                  </div>
+                )}
                 {bmi > 0 && (
                   <div>
                     <p className="text-xs md:text-sm text-gray-500">BMI</p>
@@ -219,6 +228,18 @@ export const Profile: React.FC = () => {
                       step="0.1"
                       value={formData.targetWeight}
                       onChange={(e) => setFormData({ ...formData, targetWeight: e.target.value })}
+                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Target Waist (cm)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.targetWaist}
+                      onChange={(e) => setFormData({ ...formData, targetWaist: e.target.value })}
                       className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
