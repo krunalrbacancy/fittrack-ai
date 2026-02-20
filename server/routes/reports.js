@@ -449,23 +449,55 @@ router.get('/weekly', async (req, res) => {
     };
 
     // Goal progress calculations
+    // Get the earliest, maximum, and minimum weight logs for overall progress calculation
+    const earliestWeightLog = await WeightLog.findOne({ userId: req.user._id }).sort({ date: 1 });
+    const maxWeightLog = await WeightLog.findOne({ userId: req.user._id }).sort({ weight: -1 });
+    const minWeightLog = await WeightLog.findOne({ userId: req.user._id }).sort({ weight: 1 });
+    const earliestWeight = earliestWeightLog ? Math.round(earliestWeightLog.weight * 10) / 10 : null;
+    const maxWeight = maxWeightLog ? Math.round(maxWeightLog.weight * 10) / 10 : null;
+    const minWeight = minWeightLog ? Math.round(minWeightLog.weight * 10) / 10 : null;
+    
+    // Determine baseline weight based on goal direction
+    // For weight loss: use maximum weight as baseline
+    // For weight gain: use minimum weight as baseline
+    let initialWeight = earliestWeight;
+    if (user.targetWeight && maxWeight && minWeight && earliestWeight) {
+      if (maxWeight > user.targetWeight) {
+        // Goal is to lose weight - use maximum as true starting point
+        initialWeight = maxWeight;
+      } else if (minWeight < user.targetWeight) {
+        // Goal is to gain weight - use minimum as true starting point
+        initialWeight = minWeight;
+      }
+    }
+    
     let weightGoalProgress = null;
-    if (user.targetWeight && weightStart !== null && weightEnd !== null) {
-      const isLosing = weightStart > user.targetWeight;
-      const totalNeeded = Math.abs(weightStart - user.targetWeight);
-      const progressMade = Math.abs(weightStart - weightEnd);
+    // Calculate overall progress from initial weight to current weight (weightEnd) toward target
+    if (user.targetWeight && initialWeight !== null && weightEnd !== null) {
+      // Check if goal has been reached or overshot
+      const isGoalReached = (initialWeight > user.targetWeight && weightEnd <= user.targetWeight) ||
+                            (initialWeight < user.targetWeight && weightEnd >= user.targetWeight);
       
-      // Check if moving in correct direction
-      const movingCorrectly = isLosing 
-        ? (weightEnd < weightStart) 
-        : (weightEnd > weightStart);
-      
-      if (totalNeeded > 0 && movingCorrectly) {
-        weightGoalProgress = Math.min(100, (progressMade / totalNeeded) * 100);
-      } else if (weightStart === user.targetWeight) {
+      if (isGoalReached) {
+        // Goal reached or overshot - show 100% progress
         weightGoalProgress = 100;
       } else {
-        weightGoalProgress = 0;
+        // Calculate distance from goal for initial and current weights
+        const initialDistanceFromGoal = Math.abs(initialWeight - user.targetWeight);
+        const currentDistanceFromGoal = Math.abs(weightEnd - user.targetWeight);
+        
+        if (initialDistanceFromGoal === 0) {
+          // Already at goal from the start
+          weightGoalProgress = 100;
+        } else {
+          // Calculate progress: how much closer to goal (distance reduced) / total distance needed
+          const distanceReduced = initialDistanceFromGoal - currentDistanceFromGoal;
+          const totalNeeded = initialDistanceFromGoal;
+          const progress = (distanceReduced / totalNeeded) * 100;
+          
+          // Cap progress between 0% and 100%
+          weightGoalProgress = Math.max(0, Math.min(100, progress));
+        }
       }
     }
 
@@ -474,23 +506,55 @@ router.get('/weekly', async (req, res) => {
       : null;
 
     // Waist goal progress calculation (similar to weight)
+    // Get the earliest, maximum, and minimum waist logs for overall progress calculation
+    const earliestWaistLog = await WaistLog.findOne({ userId: req.user._id }).sort({ date: 1 });
+    const maxWaistLog = await WaistLog.findOne({ userId: req.user._id }).sort({ waist: -1 });
+    const minWaistLog = await WaistLog.findOne({ userId: req.user._id }).sort({ waist: 1 });
+    const earliestWaist = earliestWaistLog ? Math.round(earliestWaistLog.waist * 10) / 10 : null;
+    const maxWaist = maxWaistLog ? Math.round(maxWaistLog.waist * 10) / 10 : null;
+    const minWaist = minWaistLog ? Math.round(minWaistLog.waist * 10) / 10 : null;
+    
+    // Determine baseline waist based on goal direction
+    // For waist reduction: use maximum waist as baseline
+    // For waist increase: use minimum waist as baseline
+    let initialWaist = earliestWaist;
+    if (user.targetWaist && maxWaist && minWaist && earliestWaist) {
+      if (maxWaist > user.targetWaist) {
+        // Goal is to reduce waist - use maximum as true starting point
+        initialWaist = maxWaist;
+      } else if (minWaist < user.targetWaist) {
+        // Goal is to increase waist - use minimum as true starting point
+        initialWaist = minWaist;
+      }
+    }
+    
     let waistGoalProgress = null;
-    if (user.targetWaist && waistStart !== null && waistEnd !== null) {
-      const isLosing = waistStart > user.targetWaist;
-      const totalNeeded = Math.abs(waistStart - user.targetWaist);
-      const progressMade = Math.abs(waistStart - waistEnd);
+    // Calculate overall progress from initial waist to current waist (waistEnd) toward target
+    if (user.targetWaist && initialWaist !== null && waistEnd !== null) {
+      // Check if goal has been reached or overshot
+      const isGoalReached = (initialWaist > user.targetWaist && waistEnd <= user.targetWaist) ||
+                            (initialWaist < user.targetWaist && waistEnd >= user.targetWaist);
       
-      // Check if moving in correct direction
-      const movingCorrectly = isLosing 
-        ? (waistEnd < waistStart) 
-        : (waistEnd > waistStart);
-      
-      if (totalNeeded > 0 && movingCorrectly) {
-        waistGoalProgress = Math.min(100, (progressMade / totalNeeded) * 100);
-      } else if (waistStart === user.targetWaist) {
+      if (isGoalReached) {
+        // Goal reached or overshot - show 100% progress
         waistGoalProgress = 100;
       } else {
-        waistGoalProgress = 0;
+        // Calculate distance from goal for initial and current waist
+        const initialDistanceFromGoal = Math.abs(initialWaist - user.targetWaist);
+        const currentDistanceFromGoal = Math.abs(waistEnd - user.targetWaist);
+        
+        if (initialDistanceFromGoal === 0) {
+          // Already at goal from the start
+          waistGoalProgress = 100;
+        } else {
+          // Calculate progress: how much closer to goal (distance reduced) / total distance needed
+          const distanceReduced = initialDistanceFromGoal - currentDistanceFromGoal;
+          const totalNeeded = initialDistanceFromGoal;
+          const progress = (distanceReduced / totalNeeded) * 100;
+          
+          // Cap progress between 0% and 100%
+          waistGoalProgress = Math.max(0, Math.min(100, progress));
+        }
       }
     }
 
