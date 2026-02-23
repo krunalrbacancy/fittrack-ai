@@ -313,17 +313,7 @@ export const Profile: React.FC = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs md:text-sm font-medium text-gray-700">Daily Sugar Target (g)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={formData.dailySugarTarget}
-                      onChange={(e) => setFormData({ ...formData, dailySugarTarget: e.target.value })}
-                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
+                  {/* Sugar tracking disabled — sugar from natural sources not tracked */}
 
                   <div>
                     <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Calorie Target</label>
@@ -389,18 +379,7 @@ export const Profile: React.FC = () => {
                     <p className="mt-1 text-xs text-gray-500">Fiber target on fasting days</p>
                   </div>
 
-                  <div>
-                    <label className="block text-xs md:text-sm font-medium text-gray-700">Fasting Sugar Target (g)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={formData.fastingSugarTarget}
-                      onChange={(e) => setFormData({ ...formData, fastingSugarTarget: e.target.value })}
-                      className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">Sugar target on fasting days</p>
-                  </div>
+                  {/* Sugar target hidden — sugar tracking disabled */}
                 </div>
 
                 <div>

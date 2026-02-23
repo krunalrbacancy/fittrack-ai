@@ -197,16 +197,15 @@ export const Foods: React.FC = () => {
   const carbsTarget = dayType === 'fasting' ? (user?.fastingCarbsTarget || 170) : (user?.dailyCarbsTarget || 240);
   const fatsTarget = dayType === 'fasting' ? (user?.fastingFatsTarget || 55) : (user?.dailyFatsTarget || 60);
   const fiberTarget = dayType === 'fasting' ? (user?.fastingFiberTarget || 22) : (user?.dailyFiberTarget || 28);
-  const sugarTarget = dayType === 'fasting' ? (user?.fastingSugarTarget || 25) : (user?.dailySugarTarget || 25);
-
+  // Sugar tracking disabled — sugar from natural sources not tracked
   const remainingNutrients = useMemo(() => ({
     calories: Math.max(0, calorieTarget - stats.totalCalories),
     protein: Math.max(0, proteinTarget - stats.totalProtein),
     carbs: Math.max(0, carbsTarget - (stats.totalCarbs || 0)),
     fats: Math.max(0, fatsTarget - (stats.totalFats || 0)),
     fiber: Math.max(0, fiberTarget - (stats.totalFiber || 0)),
-    sugar: Math.max(0, sugarTarget - (stats.totalSugar || 0)),
-  }), [calorieTarget, proteinTarget, carbsTarget, fatsTarget, fiberTarget, sugarTarget, stats]);
+    sugar: 0,
+  }), [calorieTarget, proteinTarget, carbsTarget, fatsTarget, fiberTarget, stats]);
 
   const breakfastSuggestions = useMemo(() => getMealSuggestions('breakfast', remainingNutrients, suggestionOffsets.breakfast), [remainingNutrients, suggestionOffsets.breakfast]);
   const lunchSuggestions = useMemo(() => getMealSuggestions('lunch', remainingNutrients, suggestionOffsets.lunch), [remainingNutrients, suggestionOffsets.lunch]);
@@ -241,7 +240,6 @@ export const Foods: React.FC = () => {
         carbs: suggestion.carbs,
         fats: suggestion.fats,
         fiber: suggestion.fiber,
-        sugar: suggestion.sugar || 0,
         quantity: suggestion.per100g ? quantity / 100 : quantity,
         date: selectedDate,
         category: category as any,
@@ -282,7 +280,6 @@ export const Foods: React.FC = () => {
       carbs: (Math.round(baseData.carbs * multiplier * 10) / 10).toString(),
       fats: (Math.round(baseData.fats * multiplier * 10) / 10).toString(),
       fiber: (Math.round(baseData.fiber * multiplier * 10) / 10).toString(),
-      sugar: (Math.round(baseData.sugar * multiplier * 10) / 10).toString(),
     }));
   };
 
@@ -449,7 +446,7 @@ export const Foods: React.FC = () => {
           carbs: formData.carbs ? Number(formData.carbs) : 0,
           fats: formData.fats ? Number(formData.fats) : 0,
           fiber: formData.fiber ? Number(formData.fiber) : 0,
-          sugar: formData.sugar ? Number(formData.sugar) : 0,
+          sugar: 0,
           quantity: Number(formData.quantity),
           category: formData.category,
           dayType: formData.dayType,
@@ -462,7 +459,7 @@ export const Foods: React.FC = () => {
           carbs: formData.carbs ? Number(formData.carbs) : 0,
           fats: formData.fats ? Number(formData.fats) : 0,
           fiber: formData.fiber ? Number(formData.fiber) : 0,
-          sugar: formData.sugar ? Number(formData.sugar) : 0,
+          sugar: 0,
           quantity: Number(formData.quantity),
           category: formData.category,
           dayType: formData.dayType,
@@ -853,7 +850,6 @@ export const Foods: React.FC = () => {
                                 {food.carbs !== undefined && food.carbs > 0 && <span>Carbs: {food.carbs}g</span>}
                                 {food.fats !== undefined && food.fats > 0 && <span>Fats: {food.fats}g</span>}
                                 {food.fiber !== undefined && food.fiber > 0 && <span>Fiber: {food.fiber}g</span>}
-                                {food.sugar !== undefined && food.sugar > 0 && <span>Sugar: {food.sugar}g</span>}
                                 <span>Qty: {food.quantity}</span>
                                 {food.dayType && (
                                   <span className={`capitalize px-2 py-0.5 rounded text-xs ${
@@ -1066,17 +1062,7 @@ export const Foods: React.FC = () => {
                             className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Sugar (g)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={formData.sugar}
-                            onChange={(e) => setFormData({ ...formData, sugar: e.target.value })}
-                            className="mt-1 block w-full text-base border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
+                        {/* Sugar tracking disabled — sugar from natural sources not tracked */}
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
