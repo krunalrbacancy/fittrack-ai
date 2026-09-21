@@ -11,6 +11,8 @@ import waistRoutes from './routes/waist.js';
 import workoutRoutes from './routes/workout.js';
 import stepsRoutes from './routes/steps.js';
 import reportsRoutes from './routes/reports.js';
+import chatRoutes from './routes/chat.js';
+import documentRoutes from './routes/documents.js';
 
 dotenv.config();
 
@@ -34,6 +36,8 @@ app.use('/api/waist', waistRoutes);
 app.use('/api/workout', workoutRoutes);
 app.use('/api/steps', stepsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
