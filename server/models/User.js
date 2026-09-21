@@ -19,8 +19,30 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: null
   },
+  gender: {
+    type: String,
+    enum: ['male', 'female', null],
+    default: null
+  },
   height: {
     type: Number, // in cm
+    default: null
+  },
+  activityLevel: {
+    type: String,
+    enum: ['sedentary', 'light', 'moderate', 'active', 'veryActive', null],
+    default: null
+  },
+  onboardingCompleted: {
+    type: Boolean,
+    default: false
+  },
+  isGuest: {
+    type: Boolean,
+    default: false
+  },
+  guestResetAt: {
+    type: Date,
     default: null
   },
   currentWeight: {
@@ -38,6 +60,11 @@ const userSchema = new mongoose.Schema({
   goal: {
     type: String,
     default: 'Reduce Belly Fat'
+  },
+  goalType: {
+    type: String,
+    enum: ['lose', 'maintain', 'gain', null],
+    default: null
   },
   dailyCalorieTarget: {
     type: Number,
