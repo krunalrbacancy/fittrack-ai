@@ -1,14 +1,22 @@
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'veryActive';
+export type GoalType = 'lose' | 'maintain' | 'gain';
+
 export interface User {
   _id?: string;
   id?: string;
   username: string;
   name: string;
   age: number | null;
+  gender?: 'male' | 'female' | null;
   height: number | null;
+  activityLevel?: ActivityLevel | null;
   currentWeight: number | null;
   targetWeight: number | null;
   targetWaist: number | null;
   goal: string;
+  goalType?: GoalType | null;
+  onboardingCompleted?: boolean;
+  isGuest?: boolean;
   dailyCalorieTarget: number;
   dailyProteinTarget: number;
   dailyCarbsTarget?: number;
@@ -103,5 +111,14 @@ export interface StepsLog {
   date: string;
   notes?: string;
   userId?: string;
+}
+
+export interface ChatMessage {
+  _id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  totalTokens?: number;
+  imagePreviewUrl?: string;
 }
 

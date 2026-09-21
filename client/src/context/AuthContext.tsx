@@ -6,6 +6,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string, name?: string) => Promise<void>;
+  loginAsGuest: () => Promise<void>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => Promise<void>;
 }
@@ -21,88 +23,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(response.user);
   };
 
+  const register = async (username: string, password: string, name?: string) => {
+    const response = await authAPI.register(username, password, name);
+    setUser(response.user);
+  };
+
+  const loginAsGuest = async () => {
+    const response = await authAPI.guest();
+    setUser(response.user);
+  };
+
   useEffect(() => {
     const initAuth = async () => {
-      // CRITICAL FIX: In development, clear stale localStorage on every load to prevent state issues
-      if (import.meta.env.DEV) {
-        const lastClear = localStorage.getItem('_lastClear');
-        const now = Date.now();
-        // Clear localStorage every 5 minutes in dev to prevent stale state
-        if (!lastClear || (now - parseInt(lastClear)) > 300000) {
-          localStorage.removeItem('user'); // Keep token for auto-login
-          localStorage.setItem('_lastClear', now.toString());
-        }
-      }
-      
-      try {
-        const token = localStorage.getItem('token');
-        const storedUser = authAPI.getStoredUser();
+      const token = localStorage.getItem('token');
 
-        // If no token exists, auto-login with default credentials
-        if (!token) {
-          try {
-            const loginResponse = await authAPI.login('admin', 'admin123');
-            setUser(loginResponse.user);
-            // After auto-login, fetch the profile to get latest data
-            try {
-              const userData = await userAPI.getProfile();
-              setUser(userData);
-              localStorage.setItem('user', JSON.stringify(userData));
-            } catch (profileError: any) {
-              // If profile fetch fails, use login response
-              console.error('Failed to fetch user profile after auto-login:', profileError);
-            }
-          } catch (loginError: any) {
-            console.error('Auto-login failed:', loginError);
-            // If auto-login fails, try to fetch profile anyway (optionalAuth)
-            try {
-              const userData = await userAPI.getProfile();
-              setUser(userData);
-              localStorage.setItem('user', JSON.stringify(userData));
-            } catch (profileError: any) {
-              console.error('Failed to fetch user profile:', profileError);
-              if (storedUser) {
-                setUser(storedUser);
-              } else {
-                setUser(null);
-              }
-            }
-          }
-        } else {
-          // Token exists, fetch user profile
-          try {
-            const userData = await userAPI.getProfile();
-            setUser(userData);
-            localStorage.setItem('user', JSON.stringify(userData));
-          } catch (error: any) {
-            console.error('Failed to fetch user profile:', error);
-            // If token is invalid, try auto-login
-            if (error.response?.status === 401) {
-              try {
-                const loginResponse = await authAPI.login('admin', 'admin123');
-                setUser(loginResponse.user);
-                const userData = await userAPI.getProfile();
-                setUser(userData);
-                localStorage.setItem('user', JSON.stringify(userData));
-              } catch (loginError: any) {
-                console.error('Auto-login after token failure:', loginError);
-                if (storedUser) {
-                  setUser(storedUser);
-                } else {
-                  setUser(null);
-                }
-              }
-            } else {
-              if (storedUser) {
-                setUser(storedUser);
-              } else {
-                setUser(null);
-              }
-            }
-          }
-        }
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const userData = await userAPI.getProfile();
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('Failed to fetch user profile:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
         setUser(null);
       } finally {
         setLoading(false);
@@ -140,7 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginAsGuest, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

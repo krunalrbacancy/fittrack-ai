@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { User, FoodEntry, WeightLog, WaterLog, WaterStats } from '../types';
+import { User, FoodEntry, WeightLog, WaterLog, WaterStats, ChatMessage } from '../types';
 import { isTokenExpired } from './token';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -19,19 +19,10 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    // Handle 401 Unauthorized (token expired or invalid)
+    // Handle 401 Unauthorized (token expired or invalid) by clearing stale auth state
     if (error.response?.status === 401) {
-      // Clear invalid token but don't redirect (login is disabled)
-      const token = localStorage.getItem('token');
-      if (token && isTokenExpired(token)) {
-        // Token is expired, clear it
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      } else {
-        // Token might be invalid for other reasons, clear it anyway
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
     
     if (error.code === 'ECONNREFUSED' || error.message === 'Network Error') {
@@ -74,6 +65,22 @@ export const authAPI = {
     }
     return response.data;
   },
+  register: async (username: string, password: string, name?: string) => {
+    const response = await api.post('/auth/register', { username, password, name });
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
+  },
+  guest: async () => {
+    const response = await api.post('/auth/guest');
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
+  },
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -92,6 +99,19 @@ export const userAPI = {
   },
   updateProfile: async (data: Partial<User>): Promise<User> => {
     const response = await api.put('/users/profile', data);
+    return response.data;
+  },
+  completeOnboarding: async (data: {
+    age: number;
+    gender: 'male' | 'female';
+    height: number;
+    currentWeight: number;
+    targetWeight?: number | null;
+    targetWaist?: number | null;
+    activityLevel: string;
+    goalType: string;
+  }): Promise<User> => {
+    const response = await api.post('/users/onboarding', data);
     return response.data;
   },
 };
@@ -233,6 +253,89 @@ export const reportsAPI = {
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
     const response = await api.get('/reports/weekly', { params });
+    return response.data;
+  },
+};
+
+export interface ChatUsage {
+  tokensUsed: number;
+  dailyBudget: number;
+  tokensRemaining: number;
+}
+
+// Chat API
+export const chatAPI = {
+  getHistory: async (): Promise<ChatMessage[]> => {
+    const response = await api.get('/chat/history');
+    return response.data;
+  },
+  getUsage: async (): Promise<ChatUsage> => {
+    const response = await api.get('/chat/usage');
+    return response.data;
+  },
+  sendMessage: async (
+    message: string,
+    image?: File | null
+  ): Promise<{
+    reply: string;
+    loggedFoodEntry?: { foodName: string; quantity: number; calories: number; protein: number; category: string } | null;
+    usage?: { promptTokens: number; completionTokens: number; totalTokens: number; dailyBudget: number; tokensRemaining: number };
+  }> => {
+    if (image) {
+      const formData = new FormData();
+      if (message) formData.append('message', message);
+      formData.append('image', image);
+      // Image uploads + vision processing take longer than plain text; give it more room
+      // than the default 10s timeout, especially if a model fallback retry kicks in server-side.
+      const response = await api.post('/chat', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 45000,
+      });
+      return response.data;
+    }
+    const response = await api.post('/chat', { message });
+    return response.data;
+  },
+  clearHistory: async (): Promise<void> => {
+    await api.delete('/chat/history');
+  },
+};
+
+export interface DocumentItem {
+  _id: string;
+  filename: string;
+  sizeBytes: number;
+  chunkCount: number;
+  status: 'processing' | 'ready' | 'failed';
+  createdAt: string;
+}
+
+export interface DocumentSource {
+  filename: string;
+  chunkIndex: number;
+  excerpt: string;
+  relevance: number;
+}
+
+// Documents API (RAG over uploaded text documents)
+export const documentsAPI = {
+  list: async (): Promise<DocumentItem[]> => {
+    const response = await api.get('/documents');
+    return response.data;
+  },
+  upload: async (file: File): Promise<DocumentItem> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+  remove: async (id: string): Promise<void> => {
+    await api.delete(`/documents/${id}`);
+  },
+  ask: async (question: string): Promise<{ answer: string; sources: DocumentSource[] }> => {
+    const response = await api.post('/documents/ask', { question });
     return response.data;
   },
 };

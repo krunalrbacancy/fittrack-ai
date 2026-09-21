@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ChatWidget } from './ChatWidget';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -22,6 +23,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/foods', label: 'Foods', icon: '🍽️' },
     { path: '/tracking', label: 'Tracking', icon: '📊' },
     { path: '/reports', label: 'Reports', icon: '📈' },
+    { path: '/documents', label: 'Documents', icon: '📄' },
     { path: '/profile', label: 'Profile', icon: '👤' },
   ];
 
@@ -138,6 +140,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           ))}
         </div>
       </div>
+
+      <ChatWidget />
     </div>
   );
 };

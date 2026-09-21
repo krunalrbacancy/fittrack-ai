@@ -4,16 +4,16 @@ import { useAuth } from '../context/AuthContext';
 import { isTokenValid } from '../utils/token';
 import { PasswordInput } from '../components/PasswordInput';
 
-export const Login: React.FC = () => {
+export const Register: React.FC = () => {
+  const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [guestLoading, setGuestLoading] = useState(false);
-  const { login, loginAsGuest, user, loading: authLoading } = useAuth();
+  const { register, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already logged in
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!authLoading && (user || (token && isTokenValid(token)))) {
@@ -24,42 +24,30 @@ export const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await login(username, password);
+      await register(username, password, name);
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('Register error:', err);
       if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
         setError('Cannot connect to server. Make sure the backend is running on port 5000.');
-      } else if (err.response?.status === 401) {
-        setError(err.response?.data?.message || 'Invalid credentials');
-      } else if (err.response?.status === 500) {
-        setError('Server error. Check backend logs and MongoDB connection.');
+      } else if (err.response?.status === 409) {
+        setError('That username is already taken.');
       } else {
-        setError(err.response?.data?.message || 'Login failed. Please try again.');
+        setError(err.response?.data?.message || 'Registration failed. Please try again.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGuestLogin = async () => {
-    setError('');
-    setGuestLoading(true);
-    try {
-      await loginAsGuest();
-      navigate('/dashboard');
-    } catch (err: any) {
-      console.error('Guest login error:', err);
-      setError('Could not start the guest demo. Please try again.');
-    } finally {
-      setGuestLoading(false);
-    }
-  };
-
-  // Show loading while checking auth
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -76,7 +64,7 @@ export const Login: React.FC = () => {
             FitTrack AI
           </h2>
           <p className="mt-2 text-center text-sm md:text-base text-gray-600">
-            Sign in to track your fitness journey
+            Create your account to start tracking
           </p>
         </div>
         <form className="space-y-5" onSubmit={handleSubmit}>
@@ -87,6 +75,20 @@ export const Login: React.FC = () => {
           )}
           <div className="space-y-4">
             <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                Name
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                className="appearance-none relative block w-full px-4 py-3 text-base border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
                 Username
               </label>
@@ -96,7 +98,7 @@ export const Login: React.FC = () => {
                 type="text"
                 required
                 className="appearance-none relative block w-full px-4 py-3 text-base border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter username"
+                placeholder="Choose a username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -109,10 +111,26 @@ export const Login: React.FC = () => {
                 id="password"
                 name="password"
                 required
+                minLength={6}
                 className="appearance-none relative block w-full px-4 py-3 text-base border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter password"
+                placeholder="At least 6 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                Confirm Password
+              </label>
+              <PasswordInput
+                id="confirmPassword"
+                name="confirmPassword"
+                required
+                minLength={6}
+                className="appearance-none relative block w-full px-4 py-3 text-base border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
               />
             </div>
           </div>
@@ -123,43 +141,19 @@ export const Login: React.FC = () => {
               disabled={loading}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-base font-medium rounded-xl text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors touch-manipulation"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Creating account...' : 'Sign up'}
             </button>
           </div>
           <div className="text-center text-sm text-gray-600">
             <p>
-              Don't have an account?{' '}
-              <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-                Sign up
+              Already have an account?{' '}
+              <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                Sign in
               </Link>
             </p>
           </div>
         </form>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-white px-3 text-gray-400">or</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleGuestLogin}
-            disabled={guestLoading}
-            className="mt-4 w-full flex justify-center items-center gap-2 py-3 px-4 border border-gray-300 text-base font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors touch-manipulation"
-          >
-            <span>👀</span>
-            {guestLoading ? 'Loading demo...' : 'Try as Guest'}
-          </button>
-          <p className="mt-2 text-center text-xs text-gray-500">
-            Explore the app and chatbot with sample data. No account needed.
-          </p>
-        </div>
       </div>
     </div>
   );
 };
-
