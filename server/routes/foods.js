@@ -1,5 +1,5 @@
 import express from 'express';
-import { optionalAuth, protect } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 import FoodEntry from '../models/FoodEntry.js';
 
 const router = express.Router();
@@ -7,7 +7,7 @@ const router = express.Router();
 // @route   GET /api/foods
 // @desc    Get all food entries for user
 // @access  Private (optional auth for read-only access)
-router.get('/', optionalAuth, async (req, res) => {
+router.get('/', protect, async (req, res) => {
   try {
     const { date } = req.query;
     let query = { userId: req.user._id };
@@ -31,7 +31,7 @@ router.get('/', optionalAuth, async (req, res) => {
 // @route   GET /api/foods/stats
 // @desc    Get daily stats
 // @access  Private (optional auth for read-only access)
-router.get('/stats', optionalAuth, async (req, res) => {
+router.get('/stats', protect, async (req, res) => {
   try {
     const { date } = req.query;
     const targetDate = date ? new Date(date) : new Date();
@@ -69,7 +69,7 @@ router.get('/stats', optionalAuth, async (req, res) => {
 // @route   GET /api/foods/weekly
 // @desc    Get weekly stats
 // @access  Private (optional auth for read-only access)
-router.get('/weekly', optionalAuth, async (req, res) => {
+router.get('/weekly', protect, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
