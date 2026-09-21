@@ -19,6 +19,10 @@ const chatMessageSchema = new mongoose.Schema({
     type: [Number],
     default: undefined,
     select: false
+  },
+  imageDataUrl: {
+    type: String,
+    default: undefined
   }
 }, {
   timestamps: true
