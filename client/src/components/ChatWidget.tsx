@@ -289,14 +289,16 @@ export const ChatWidget: React.FC = () => {
                       : 'bg-white text-gray-800 border rounded-bl-sm'
                   }`}
                 >
-                  {m.imagePreviewUrl && (
+                  {(m.imagePreviewUrl || m.imageDataUrl) && (
                     <img
-                      src={m.imagePreviewUrl}
+                      src={m.imagePreviewUrl || m.imageDataUrl}
                       alt="Sent meal photo"
                       className="w-40 h-40 object-cover rounded-xl mb-2"
                     />
                   )}
-                  {m.role === 'assistant' ? renderMessageContent(m.content) : m.content}
+                  {m.role === 'assistant'
+                    ? renderMessageContent(m.content)
+                    : !(m.content === '[Photo of a meal]' && (m.imagePreviewUrl || m.imageDataUrl)) && m.content}
                 </div>
                 {m.role === 'assistant' && typeof m.totalTokens === 'number' && (
                   <p className="text-[11px] text-gray-400 mt-0.5 px-1">{m.totalTokens} tokens</p>

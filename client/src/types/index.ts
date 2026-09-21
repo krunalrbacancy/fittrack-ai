@@ -120,5 +120,6 @@ export interface ChatMessage {
   createdAt: string;
   totalTokens?: number;
   imagePreviewUrl?: string;
+  imageDataUrl?: string;
 }
 

@@ -300,6 +300,9 @@ router.post('/', uploadImage, async (req, res) => {
 
     // Text stored/embedded for history purposes — a caption for image-only messages
     const storedMessageText = message || '[Photo of a meal]';
+    const imageDataUrl = imageFile
+      ? `data:${imageFile.mimetype};base64,${imageFile.buffer.toString('base64')}`
+      : undefined;
 
     const user = await User.findById(req.user._id);
     const [context, recentHistory, totalMessageCount, queryEmbedding] = await Promise.all([
@@ -405,7 +408,7 @@ router.post('/', uploadImage, async (req, res) => {
     const [totalTokensUsedToday] = await Promise.all([
       addTodayUsage(req.user._id, totalTokens),
       ChatMessage.create([
-        { userId: req.user._id, role: 'user', content: storedMessageText, embedding: queryEmbedding || undefined },
+        { userId: req.user._id, role: 'user', content: storedMessageText, embedding: queryEmbedding || undefined, imageDataUrl },
         { userId: req.user._id, role: 'assistant', content: replyText, embedding: replyEmbedding || undefined }
       ])
     ]);
