@@ -1,5 +1,6 @@
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'veryActive';
 export type GoalType = 'lose' | 'maintain' | 'gain';
+export type TrainingLevel = 'beginner' | 'intermediate' | 'advanced';
 
 export interface User {
   _id?: string;
@@ -10,6 +11,7 @@ export interface User {
   gender?: 'male' | 'female' | null;
   height: number | null;
   activityLevel?: ActivityLevel | null;
+  trainingLevel?: TrainingLevel | null;
   currentWeight: number | null;
   targetWeight: number | null;
   targetWaist: number | null;

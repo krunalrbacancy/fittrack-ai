@@ -110,8 +110,13 @@ export const userAPI = {
     targetWaist?: number | null;
     activityLevel: string;
     goalType: string;
+    trainingLevel?: string;
   }): Promise<User> => {
     const response = await api.post('/users/onboarding', data);
+    return response.data;
+  },
+  recalculateTargets: async (trainingLevel?: string): Promise<User> => {
+    const response = await api.post('/users/recalculate-targets', { trainingLevel });
     return response.data;
   },
 };
@@ -263,6 +268,12 @@ export interface ChatUsage {
   tokensRemaining: number;
 }
 
+export interface ChatModelOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
 // Chat API
 export const chatAPI = {
   getHistory: async (): Promise<ChatMessage[]> => {
@@ -271,6 +282,14 @@ export const chatAPI = {
   },
   getUsage: async (): Promise<ChatUsage> => {
     const response = await api.get('/chat/usage');
+    return response.data;
+  },
+  getModels: async (): Promise<{ models: ChatModelOption[]; selected: string }> => {
+    const response = await api.get('/chat/models');
+    return response.data;
+  },
+  setModel: async (model: string): Promise<{ selected: string }> => {
+    const response = await api.put('/chat/model', { model });
     return response.data;
   },
   sendMessage: async (

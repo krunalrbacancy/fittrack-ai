@@ -17,9 +17,31 @@ const router = express.Router();
 
 router.use(protect);
 
-const MODEL_FALLBACK_CHAIN = process.env.GEMINI_MODEL
-  ? [process.env.GEMINI_MODEL]
-  : ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemma-4-26b-a4b-it'];
+// Only models verified working + usable free-tier quota on this API key.
+// Order here is also the default auto-fallback order (fastest/cheapest first).
+const MODEL_OPTIONS = [
+  { id: 'gemini-flash-lite-latest', label: 'Flash Lite', description: 'Fastest, best free quota (default)' },
+  { id: 'gemini-flash-latest', label: 'Flash', description: 'More capable, still fast' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', description: 'Newer flash model' },
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', description: 'Newer lite model' },
+  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash', description: 'Latest flash generation' },
+  { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4', description: 'Open-weight, separate quota pool' }
+];
+const AVAILABLE_MODELS = MODEL_OPTIONS.map((m) => m.id);
+const DEFAULT_CHAIN = process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : AVAILABLE_MODELS;
+
+// Auto = the full fallback chain. A specific choice tries that model first,
+// then still falls back through the rest of the chain if it hits its quota.
+const buildModelChain = (preferredModel) => {
+  if (!preferredModel || preferredModel === 'auto' || process.env.GEMINI_MODEL) {
+    return DEFAULT_CHAIN;
+  }
+  if (!AVAILABLE_MODELS.includes(preferredModel)) {
+    return DEFAULT_CHAIN;
+  }
+  return [preferredModel, ...AVAILABLE_MODELS.filter((m) => m !== preferredModel)];
+};
+
 const DAILY_TOKEN_BUDGET = 100000;
 
 const isQuotaError = (error) =>
@@ -238,11 +260,46 @@ const addTodayUsage = async (userId, tokens) => {
 router.get('/history', async (req, res) => {
   try {
     const messages = await ChatMessage.find({ userId: req.user._id })
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
       .limit(100);
-    res.json(messages);
+    res.json(messages.reverse());
   } catch (error) {
     console.error('Get chat history error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/chat/models
+// @desc    List available chat models and the user's current preference
+// @access  Private
+router.get('/models', async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('preferredChatModel');
+    res.json({
+      models: [{ id: 'auto', label: 'Auto', description: 'Automatically picks the best available model' }, ...MODEL_OPTIONS],
+      selected: user.preferredChatModel || 'auto'
+    });
+  } catch (error) {
+    console.error('Get chat models error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   PUT /api/chat/model
+// @desc    Set the user's preferred chat model
+// @access  Private
+router.put('/model', async (req, res) => {
+  try {
+    const { model } = req.body;
+    const validIds = ['auto', ...AVAILABLE_MODELS];
+    if (!validIds.includes(model)) {
+      return res.status(400).json({ message: 'Invalid model' });
+    }
+
+    await User.findByIdAndUpdate(req.user._id, { preferredChatModel: model });
+    res.json({ selected: model });
+  } catch (error) {
+    console.error('Set chat model error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -333,7 +390,8 @@ router.post('/', uploadImage, async (req, res) => {
     let usedModel = null;
     let lastError = null;
 
-    for (const model of MODEL_FALLBACK_CHAIN) {
+    const modelChain = buildModelChain(user.preferredChatModel);
+    for (const model of modelChain) {
       try {
         const chatSession = aiClient.chats.create({
           model,
@@ -405,11 +463,30 @@ router.post('/', uploadImage, async (req, res) => {
 
     const replyEmbedding = await embedText(aiClient, replyText);
 
+    // Explicit, strictly increasing timestamps: two docs created in the same
+    // bulk insert can otherwise tie on createdAt, making sort order unstable
+    // (the user/assistant pair can come back swapped or reshuffled on reload).
+    const userMessageTime = new Date();
+    const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
+
     const [totalTokensUsedToday] = await Promise.all([
       addTodayUsage(req.user._id, totalTokens),
       ChatMessage.create([
-        { userId: req.user._id, role: 'user', content: storedMessageText, embedding: queryEmbedding || undefined, imageDataUrl },
-        { userId: req.user._id, role: 'assistant', content: replyText, embedding: replyEmbedding || undefined }
+        {
+          userId: req.user._id,
+          role: 'user',
+          content: storedMessageText,
+          embedding: queryEmbedding || undefined,
+          imageDataUrl,
+          createdAt: userMessageTime
+        },
+        {
+          userId: req.user._id,
+          role: 'assistant',
+          content: replyText,
+          embedding: replyEmbedding || undefined,
+          createdAt: assistantMessageTime
+        }
       ])
     ]);
 

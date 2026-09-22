@@ -29,6 +29,7 @@ router.put('/profile', protect, async (req, res) => {
       gender,
       height,
       activityLevel,
+      trainingLevel,
       currentWeight,
       targetWeight,
       targetWaist,
@@ -56,6 +57,7 @@ router.put('/profile', protect, async (req, res) => {
         gender,
         height,
         activityLevel,
+        trainingLevel,
         currentWeight,
         targetWeight,
         targetWaist,
@@ -95,7 +97,7 @@ const GOAL_LABELS = {
 // @access  Private
 router.post('/onboarding', protect, async (req, res) => {
   try {
-    const { age, gender, height, currentWeight, targetWeight, targetWaist, activityLevel, goalType } = req.body;
+    const { age, gender, height, currentWeight, targetWeight, targetWaist, activityLevel, goalType, trainingLevel } = req.body;
 
     if (!age || !gender || !height || !currentWeight || !activityLevel || !goalType) {
       return res.status(400).json({ message: 'Please answer all survey questions' });
@@ -110,6 +112,9 @@ router.post('/onboarding', protect, async (req, res) => {
     if (!['lose', 'maintain', 'gain'].includes(goalType)) {
       return res.status(400).json({ message: 'Invalid goal' });
     }
+    if (trainingLevel && !['beginner', 'intermediate', 'advanced'].includes(trainingLevel)) {
+      return res.status(400).json({ message: 'Invalid training level' });
+    }
 
     const targets = calculateNutritionTargets({
       gender,
@@ -117,7 +122,8 @@ router.post('/onboarding', protect, async (req, res) => {
       heightCm: Number(height),
       age: Number(age),
       activityLevel,
-      goal: goalType
+      goal: goalType,
+      trainingLevel: trainingLevel || 'beginner'
     });
 
     const user = await User.findByIdAndUpdate(
@@ -130,6 +136,7 @@ router.post('/onboarding', protect, async (req, res) => {
         targetWeight: targetWeight ? Number(targetWeight) : null,
         targetWaist: targetWaist ? Number(targetWaist) : null,
         activityLevel,
+        trainingLevel: trainingLevel || 'beginner',
         goalType,
         goal: GOAL_LABELS[goalType],
         onboardingCompleted: true,
@@ -141,6 +148,52 @@ router.post('/onboarding', protect, async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('Onboarding error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/users/recalculate-targets
+// @desc    Recompute nutrition targets from the user's current profile data
+//          (optionally overriding trainingLevel before saving it)
+// @access  Private
+router.post('/recalculate-targets', protect, async (req, res) => {
+  try {
+    const { trainingLevel } = req.body;
+
+    if (trainingLevel && !['beginner', 'intermediate', 'advanced'].includes(trainingLevel)) {
+      return res.status(400).json({ message: 'Invalid training level' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.age || !user.gender || !user.height || !user.currentWeight || !user.activityLevel || !user.goalType) {
+      return res.status(400).json({ message: 'Complete onboarding before recalculating targets' });
+    }
+
+    const effectiveTrainingLevel = trainingLevel || user.trainingLevel || 'beginner';
+
+    const targets = calculateNutritionTargets({
+      gender: user.gender,
+      weightKg: user.currentWeight,
+      heightCm: user.height,
+      age: user.age,
+      activityLevel: user.activityLevel,
+      goal: user.goalType,
+      trainingLevel: effectiveTrainingLevel
+    });
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { trainingLevel: effectiveTrainingLevel, ...targets },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Recalculate targets error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
