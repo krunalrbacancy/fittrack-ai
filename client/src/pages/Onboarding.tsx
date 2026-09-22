@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { userAPI } from '../utils/api';
-import { ActivityLevel, GoalType } from '../types';
+import { ActivityLevel, GoalType, TrainingLevel } from '../types';
 
 const ACTIVITY_OPTIONS: { value: ActivityLevel; label: string; hint: string }[] = [
   { value: 'sedentary', label: 'Not very active', hint: 'Little or no exercise, desk job' },
@@ -12,13 +12,19 @@ const ACTIVITY_OPTIONS: { value: ActivityLevel; label: string; hint: string }[] 
   { value: 'veryActive', label: 'Extremely active', hint: 'Physical job or training twice a day' },
 ];
 
+const TRAINING_LEVEL_OPTIONS: { value: TrainingLevel; label: string; hint: string }[] = [
+  { value: 'beginner', label: 'Beginner', hint: 'New to structured training, or just getting started' },
+  { value: 'intermediate', label: 'Intermediate', hint: 'Training regularly for a while, comfortable with the basics' },
+  { value: 'advanced', label: 'Advanced', hint: 'Serious, consistent strength training experience' },
+];
+
 const GOAL_OPTIONS: { value: GoalType; label: string; hint: string; icon: string }[] = [
   { value: 'lose', label: 'Lose weight', hint: 'Eat a bit less than you burn', icon: '📉' },
   { value: 'maintain', label: 'Stay the same', hint: 'Match what you eat to what you burn', icon: '⚖️' },
   { value: 'gain', label: 'Build muscle', hint: 'Eat a bit more to support growth', icon: '📈' },
 ];
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 export const Onboarding: React.FC = () => {
   const { updateUser } = useAuth();
@@ -34,11 +40,13 @@ export const Onboarding: React.FC = () => {
   const [targetWeight, setTargetWeight] = useState('');
   const [targetWaist, setTargetWaist] = useState('');
   const [activityLevel, setActivityLevel] = useState<ActivityLevel | ''>('');
+  const [trainingLevel, setTrainingLevel] = useState<TrainingLevel | ''>('');
   const [goalType, setGoalType] = useState<GoalType | ''>('');
 
   const canContinueFromStep1 = gender && age && height && currentWeight;
   const canContinueFromStep2 = !!activityLevel;
-  const canContinueFromStep3 = !!goalType;
+  const canContinueFromStep3 = !!trainingLevel;
+  const canContinueFromStep4 = !!goalType;
 
   const handleNext = () => setStep((s) => Math.min(TOTAL_STEPS, s + 1));
   const handleBack = () => setStep((s) => Math.max(1, s - 1));
@@ -55,6 +63,7 @@ export const Onboarding: React.FC = () => {
         targetWeight: targetWeight ? Number(targetWeight) : null,
         targetWaist: targetWaist ? Number(targetWaist) : null,
         activityLevel: activityLevel as ActivityLevel,
+        trainingLevel: trainingLevel as TrainingLevel,
         goalType: goalType as GoalType,
       });
       await updateUser(updatedUser);
@@ -179,6 +188,30 @@ export const Onboarding: React.FC = () => {
 
         {step === 3 && (
           <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">What's your training experience?</label>
+            <p className="text-xs text-gray-500 -mt-2 mb-2">This helps set a protein target that fits your training.</p>
+            {TRAINING_LEVEL_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setTrainingLevel(opt.value)}
+                className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                  trainingLevel === opt.value
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <p className="font-medium text-sm">{opt.label}</p>
+                <p className={`text-xs mt-0.5 ${trainingLevel === opt.value ? 'text-blue-100' : 'text-gray-500'}`}>
+                  {opt.hint}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-3">
             <label className="block text-sm font-medium text-gray-700 mb-1">What's your main goal?</label>
             {GOAL_OPTIONS.map((opt) => (
               <button
@@ -203,7 +236,7 @@ export const Onboarding: React.FC = () => {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
               Optional: set target numbers to track your progress. You can skip these and add them later in your Profile.
@@ -255,7 +288,8 @@ export const Onboarding: React.FC = () => {
               disabled={
                 (step === 1 && !canContinueFromStep1) ||
                 (step === 2 && !canContinueFromStep2) ||
-                (step === 3 && !canContinueFromStep3)
+                (step === 3 && !canContinueFromStep3) ||
+                (step === 4 && !canContinueFromStep4)
               }
               className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50"
             >

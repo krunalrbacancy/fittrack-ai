@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { chatAPI, ChatUsage } from '../utils/api';
+import { chatAPI, ChatUsage, ChatModelOption } from '../utils/api';
 import { ChatMessage } from '../types';
 
 // Lightweight renderer for the small subset of markdown Gemini tends to use
@@ -83,9 +83,13 @@ export const ChatWidget: React.FC = () => {
   const [usage, setUsage] = useState<ChatUsage | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [modelOptions, setModelOptions] = useState<ChatModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState('auto');
+  const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasLoadedHistory = useRef(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (isOpen && !hasLoadedHistory.current) {
@@ -97,8 +101,43 @@ export const ChatWidget: React.FC = () => {
         .catch((err) => console.error('Failed to load chat history:', err))
         .finally(() => setLoadingHistory(false));
       chatAPI.getUsage().then(setUsage).catch((err) => console.error('Failed to load chat usage:', err));
+      chatAPI
+        .getModels()
+        .then(({ models, selected }) => {
+          setModelOptions(models);
+          setSelectedModel(selected);
+        })
+        .catch((err) => console.error('Failed to load chat models:', err));
     }
   }, [isOpen]);
+
+  // Auto-grow the textarea up to a max height, then scroll internally
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const handleModelChange = async (modelId: string) => {
+    setShowModelMenu(false);
+    if (modelId === selectedModel) return;
+    const previous = selectedModel;
+    setSelectedModel(modelId);
+    try {
+      await chatAPI.setModel(modelId);
+    } catch (err) {
+      console.error('Failed to set chat model:', err);
+      setSelectedModel(previous);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -357,10 +396,12 @@ export const ChatWidget: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17a4 4 0 100-8 4 4 0 000 8z" />
               </svg>
             </button>
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              rows={1}
               placeholder={
                 usage?.tokensRemaining === 0
                   ? 'Daily budget used up'
@@ -368,9 +409,44 @@ export const ChatWidget: React.FC = () => {
                     ? 'Add a caption (optional)...'
                     : 'Type a message...'
               }
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-2xl resize-none leading-normal focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
               disabled={sending || usage?.tokensRemaining === 0}
             />
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowModelMenu((v) => !v)}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full px-2.5 py-2 transition-colors"
+              >
+                {modelOptions.find((m) => m.id === selectedModel)?.label || 'Auto'}
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showModelMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowModelMenu(false)} />
+                  <div className="absolute right-0 bottom-full mb-1 w-56 bg-white rounded-xl shadow-xl border py-1 z-20 text-gray-800">
+                    {modelOptions.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleModelChange(m.id)}
+                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors ${
+                          m.id === selectedModel ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <p className="text-sm font-medium flex items-center gap-1.5">
+                          {m.label}
+                          {m.id === selectedModel && <span className="text-blue-600">✓</span>}
+                        </p>
+                        <p className="text-xs text-gray-500">{m.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             <button
               type="submit"
               disabled={sending || (!input.trim() && !selectedImage) || usage?.tokensRemaining === 0}

@@ -13,7 +13,11 @@ const GOAL_CALORIE_ADJUSTMENT = {
 };
 
 const MIN_CALORIES = 1200;
-const PROTEIN_PER_KG = 1.0;
+const PROTEIN_PER_KG_BY_LEVEL = {
+  beginner: 1.0,
+  intermediate: 1.4,
+  advanced: 1.8
+};
 const FATS_PER_KG = 1.0;
 const CARBS_PER_KG = 3.0;
 const SUGAR_CALORIE_SHARE = 0.10;
@@ -25,13 +29,14 @@ const calculateBMR = ({ gender, weightKg, heightCm, age }) => {
   return gender === 'female' ? base - 161 : base + 5;
 };
 
-export const calculateNutritionTargets = ({ gender, weightKg, heightCm, age, activityLevel, goal }) => {
+export const calculateNutritionTargets = ({ gender, weightKg, heightCm, age, activityLevel, goal, trainingLevel }) => {
   const bmr = calculateBMR({ gender, weightKg, heightCm, age });
   const tdee = bmr * (ACTIVITY_MULTIPLIERS[activityLevel] || ACTIVITY_MULTIPLIERS.sedentary);
 
   const calories = Math.max(MIN_CALORIES, Math.round(tdee + (GOAL_CALORIE_ADJUSTMENT[goal] ?? 0)));
 
-  const protein = Math.round(weightKg * PROTEIN_PER_KG);
+  const proteinPerKg = PROTEIN_PER_KG_BY_LEVEL[trainingLevel] || PROTEIN_PER_KG_BY_LEVEL.beginner;
+  const protein = Math.round(weightKg * proteinPerKg);
   const fats = Math.round(weightKg * FATS_PER_KG);
   const carbs = Math.round(weightKg * CARBS_PER_KG);
   const fiber = Math.round((calories / 1000) * FIBER_PER_1000_KCAL);

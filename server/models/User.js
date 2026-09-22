@@ -33,6 +33,11 @@ const userSchema = new mongoose.Schema({
     enum: ['sedentary', 'light', 'moderate', 'active', 'veryActive', null],
     default: null
   },
+  trainingLevel: {
+    type: String,
+    enum: ['beginner', 'intermediate', 'advanced', null],
+    default: 'beginner'
+  },
   onboardingCompleted: {
     type: Boolean,
     default: false
@@ -44,6 +49,10 @@ const userSchema = new mongoose.Schema({
   guestResetAt: {
     type: Date,
     default: null
+  },
+  preferredChatModel: {
+    type: String,
+    default: 'auto'
   },
   currentWeight: {
     type: Number, // in kg

@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Layout } from '../components/Layout';
 import { calculateBMI, getBMICategory } from '../utils/calculations';
+import { userAPI } from '../utils/api';
+import { TrainingLevel } from '../types';
+
+const TRAINING_LEVEL_OPTIONS: { value: TrainingLevel; label: string }[] = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+];
 
 export const Profile: React.FC = () => {
   const { user, updateUser } = useAuth();
@@ -13,6 +21,7 @@ export const Profile: React.FC = () => {
     targetWeight: '',
     targetWaist: '',
     goal: 'Reduce Belly Fat',
+    trainingLevel: 'beginner' as TrainingLevel,
     dailyCalorieTarget: '2000',
     dailyProteinTarget: '90',
     dailyCarbsTarget: '240',
@@ -27,6 +36,7 @@ export const Profile: React.FC = () => {
     fastingSugarTarget: '25',
   });
   const [loading, setLoading] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -39,6 +49,7 @@ export const Profile: React.FC = () => {
         targetWeight: user.targetWeight?.toString() || '',
         targetWaist: user.targetWaist?.toString() || '',
         goal: user.goal || 'Reduce Belly Fat',
+        trainingLevel: (user.trainingLevel as TrainingLevel) || 'beginner',
         dailyCalorieTarget: user.dailyCalorieTarget?.toString() || '2000',
         dailyProteinTarget: user.dailyProteinTarget?.toString() || '90',
         dailyCarbsTarget: user.dailyCarbsTarget?.toString() || '240',
@@ -69,6 +80,7 @@ export const Profile: React.FC = () => {
         targetWeight: formData.targetWeight ? Number(formData.targetWeight) : null,
         targetWaist: formData.targetWaist ? Number(formData.targetWaist) : null,
         goal: formData.goal,
+        trainingLevel: formData.trainingLevel,
         dailyCalorieTarget: Number(formData.dailyCalorieTarget),
         dailyProteinTarget: Number(formData.dailyProteinTarget),
         dailyCarbsTarget: Number(formData.dailyCarbsTarget),
@@ -89,6 +101,37 @@ export const Profile: React.FC = () => {
       setMessage('Failed to update profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRecalculateTargets = async () => {
+    setRecalculating(true);
+    setMessage('');
+    try {
+      const updatedUser = await userAPI.recalculateTargets(formData.trainingLevel);
+      setFormData((prev) => ({
+        ...prev,
+        trainingLevel: (updatedUser.trainingLevel as TrainingLevel) || prev.trainingLevel,
+        dailyCalorieTarget: updatedUser.dailyCalorieTarget?.toString() || prev.dailyCalorieTarget,
+        dailyProteinTarget: updatedUser.dailyProteinTarget?.toString() || prev.dailyProteinTarget,
+        dailyCarbsTarget: updatedUser.dailyCarbsTarget?.toString() || prev.dailyCarbsTarget,
+        dailyFatsTarget: updatedUser.dailyFatsTarget?.toString() || prev.dailyFatsTarget,
+        dailyFiberTarget: updatedUser.dailyFiberTarget?.toString() || prev.dailyFiberTarget,
+        dailySugarTarget: updatedUser.dailySugarTarget?.toString() || prev.dailySugarTarget,
+        fastingCalorieTarget: updatedUser.fastingCalorieTarget?.toString() || prev.fastingCalorieTarget,
+        fastingProteinTarget: updatedUser.fastingProteinTarget?.toString() || prev.fastingProteinTarget,
+        fastingCarbsTarget: updatedUser.fastingCarbsTarget?.toString() || prev.fastingCarbsTarget,
+        fastingFatsTarget: updatedUser.fastingFatsTarget?.toString() || prev.fastingFatsTarget,
+        fastingFiberTarget: updatedUser.fastingFiberTarget?.toString() || prev.fastingFiberTarget,
+        fastingSugarTarget: updatedUser.fastingSugarTarget?.toString() || prev.fastingSugarTarget,
+      }));
+      setMessage('Targets recalculated!');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error: any) {
+      console.error('Failed to recalculate targets:', error);
+      setMessage(error.response?.data?.message || 'Failed to recalculate targets');
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -252,6 +295,34 @@ export const Profile: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
                       className="mt-1 block w-full text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-gray-700">Training Level</label>
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        value={formData.trainingLevel}
+                        onChange={(e) => setFormData({ ...formData, trainingLevel: e.target.value as TrainingLevel })}
+                        className="flex-1 text-sm md:text-base border border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {TRAINING_LEVEL_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleRecalculateTargets}
+                        disabled={recalculating}
+                        className="shrink-0 px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50"
+                      >
+                        {recalculating ? 'Updating...' : 'Recalculate'}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Changes your protein target based on training experience (Beginner 1.0g/kg, Intermediate 1.4g/kg, Advanced 1.8g/kg).
+                    </p>
                   </div>
 
                   <div>
