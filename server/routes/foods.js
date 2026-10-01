@@ -4,6 +4,43 @@ import FoodEntry from '../models/FoodEntry.js';
 
 const router = express.Router();
 
+// Sums an array of ingredient rows into entry-level totals. Ingredients are
+// the source of truth when present — totals are always derived, never
+// trusted from the client, so they can't drift out of sync with the list.
+// Clamps negatives the same way normalizeIngredients does, so a malformed or
+// malicious negative value can't be used to understate a logged total.
+function sumIngredients(ingredients) {
+  return ingredients.reduce(
+    (totals, ing) => ({
+      calories: totals.calories + Math.max(0, Number(ing.calories) || 0),
+      protein: totals.protein + Math.max(0, Number(ing.protein) || 0),
+      carbs: totals.carbs + Math.max(0, Number(ing.carbs) || 0),
+      fats: totals.fats + Math.max(0, Number(ing.fats) || 0),
+      fiber: totals.fiber + Math.max(0, Number(ing.fiber) || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 }
+  );
+}
+
+// Drops ingredients with no usable name instead of coercing them to an empty
+// string, which would otherwise satisfy Mongoose's required:true String
+// validator and save a blank ingredient row.
+function normalizeIngredients(ingredients) {
+  if (!Array.isArray(ingredients)) return undefined;
+  const normalized = ingredients
+    .filter((ing) => ing && typeof ing.name === 'string' && ing.name.trim())
+    .map((ing) => ({
+      name: ing.name.trim(),
+      quantity: Math.max(0.1, Number(ing.quantity) || 1),
+      calories: Math.max(0, Number(ing.calories) || 0),
+      protein: Math.max(0, Number(ing.protein) || 0),
+      carbs: Math.max(0, Number(ing.carbs) || 0),
+      fats: Math.max(0, Number(ing.fats) || 0),
+      fiber: Math.max(0, Number(ing.fiber) || 0),
+    }));
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 // @route   GET /api/foods
 // @desc    Get all food entries for user
 // @access  Private (optional auth for read-only access)
@@ -108,7 +145,18 @@ router.get('/weekly', protect, async (req, res) => {
 // @access  Private (requires authentication for write operations)
 router.post('/', protect, async (req, res) => {
   try {
-    const { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber, sugar } = req.body;
+    let { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber, sugar, ingredients } = req.body;
+
+    const normalizedIngredients = normalizeIngredients(ingredients);
+    if (normalizedIngredients) {
+      const totals = sumIngredients(normalizedIngredients);
+      calories = totals.calories;
+      protein = totals.protein;
+      carbs = totals.carbs;
+      fats = totals.fats;
+      fiber = totals.fiber;
+      quantity = quantity || 1;
+    }
 
     if (!foodName || protein === undefined || calories === undefined || !quantity) {
       return res.status(400).json({ message: 'Please provide all required fields' });
@@ -126,7 +174,8 @@ router.post('/', protect, async (req, res) => {
       carbs: carbs !== undefined ? Number(carbs) : 0,
       fats: fats !== undefined ? Number(fats) : 0,
       fiber: fiber !== undefined ? Number(fiber) : 0,
-      sugar: sugar !== undefined ? Number(sugar) : 0
+      sugar: sugar !== undefined ? Number(sugar) : 0,
+      ingredients: normalizedIngredients
     });
 
     res.status(201).json(foodEntry);
@@ -141,7 +190,7 @@ router.post('/', protect, async (req, res) => {
 // @access  Private (requires authentication for write operations)
 router.put('/:id', protect, async (req, res) => {
   try {
-    const { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber, sugar } = req.body;
+    let { foodName, protein, calories, quantity, date, category, dayType, carbs, fats, fiber, sugar, ingredients } = req.body;
 
     const foodEntry = await FoodEntry.findOne({
       _id: req.params.id,
@@ -150,6 +199,20 @@ router.put('/:id', protect, async (req, res) => {
 
     if (!foodEntry) {
       return res.status(404).json({ message: 'Food entry not found' });
+    }
+
+    const normalizedIngredients = normalizeIngredients(ingredients);
+    if (normalizedIngredients) {
+      const totals = sumIngredients(normalizedIngredients);
+      calories = totals.calories;
+      protein = totals.protein;
+      carbs = totals.carbs;
+      fats = totals.fats;
+      fiber = totals.fiber;
+      foodEntry.ingredients = normalizedIngredients;
+    } else if (ingredients !== undefined) {
+      // Explicitly cleared back to a single-item entry
+      foodEntry.ingredients = undefined;
     }
 
     foodEntry.foodName = foodName || foodEntry.foodName;

@@ -1,5 +1,43 @@
 import mongoose from 'mongoose';
 
+const ingredientSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 0.1
+  },
+  calories: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  protein: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  carbs: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  fats: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  fiber: {
+    type: Number,
+    default: 0,
+    min: 0
+  }
+}, { _id: false });
+
 const foodEntrySchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -60,6 +98,10 @@ const foodEntrySchema = new mongoose.Schema({
     type: String,
     enum: ['normal', 'fasting'],
     default: 'normal'
+  },
+  ingredients: {
+    type: [ingredientSchema],
+    default: undefined
   }
 }, {
   timestamps: true

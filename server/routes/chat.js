@@ -168,48 +168,108 @@ const buildUserContext = async (user) => {
 
 const LOG_FOOD_FUNCTION = 'log_food_entry';
 
+const ingredientSchemaProperties = {
+  name: { type: Type.STRING, description: 'Name of this ingredient, e.g. "oats" or "almonds"' },
+  quantity: { type: Type.NUMBER, description: 'Amount of this ingredient (grams, count, or ml as appropriate). Default 1.' },
+  calories: { type: Type.NUMBER, description: 'Estimated calories for this ingredient at the given quantity' },
+  protein: { type: Type.NUMBER, description: 'Estimated grams of protein for this ingredient at the given quantity' },
+  carbs: { type: Type.NUMBER, description: 'Estimated grams of carbs for this ingredient at the given quantity' },
+  fats: { type: Type.NUMBER, description: 'Estimated grams of fat for this ingredient at the given quantity' },
+  fiber: { type: Type.NUMBER, description: 'Estimated grams of fiber for this ingredient at the given quantity' }
+};
+
 const logFoodDeclaration = {
   name: LOG_FOOD_FUNCTION,
   description:
-    "Log a food or meal entry to the user's food diary. Call this whenever the user describes something they ate or drank and wants it recorded (e.g. \"I had 2 eggs and toast for breakfast\", \"log a coffee\"). Estimate nutrition values using your general knowledge; the user can edit them later in the app.",
+    "Log a food or meal entry to the user's food diary. Call this whenever the user describes something they ate or drank and wants it recorded (e.g. \"I had 2 eggs and toast for breakfast\", \"log a coffee\"). Estimate nutrition values using your general knowledge; the user can edit them later in the app. For a meal made of multiple distinct items (e.g. \"3 egg omelette and 2 roti\", \"oats with milk, almonds and cashews\"), list each item in `ingredients` instead of estimating one opaque total — this lets the user see and edit the breakdown later.",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      foodName: { type: Type.STRING, description: 'Short name of the food or meal, e.g. "2 boiled eggs and toast"' },
+      foodName: { type: Type.STRING, description: 'Short name of the food or meal, e.g. "3 egg omelette with 2 roti"' },
       quantity: { type: Type.NUMBER, description: 'Number of servings this entry represents. Default 1.' },
-      calories: { type: Type.NUMBER, description: 'Estimated total calories for one serving' },
-      protein: { type: Type.NUMBER, description: 'Estimated grams of protein for one serving' },
-      carbs: { type: Type.NUMBER, description: 'Estimated grams of carbs for one serving' },
-      fats: { type: Type.NUMBER, description: 'Estimated grams of fat for one serving' },
-      fiber: { type: Type.NUMBER, description: 'Estimated grams of fiber for one serving' },
+      calories: { type: Type.NUMBER, description: 'Estimated total calories for one serving. Omit if `ingredients` is provided — totals are summed from it instead.' },
+      protein: { type: Type.NUMBER, description: 'Estimated grams of protein for one serving. Omit if `ingredients` is provided.' },
+      carbs: { type: Type.NUMBER, description: 'Estimated grams of carbs for one serving. Omit if `ingredients` is provided.' },
+      fats: { type: Type.NUMBER, description: 'Estimated grams of fat for one serving. Omit if `ingredients` is provided.' },
+      fiber: { type: Type.NUMBER, description: 'Estimated grams of fiber for one serving. Omit if `ingredients` is provided.' },
       sugar: { type: Type.NUMBER, description: 'Estimated grams of sugar for one serving' },
       category: {
         type: Type.STRING,
         enum: ['breakfast', 'lunch', 'snacks', 'dinner'],
         description: 'Meal category. Infer from context (time of day, wording); default to lunch if unclear.'
+      },
+      ingredients: {
+        type: Type.ARRAY,
+        description: 'For a composite meal with multiple distinct items, one entry per item with its own estimated nutrition. When provided, this becomes the source of truth and the top-level calories/protein/carbs/fats/fiber are ignored in favor of the sum of this list.',
+        items: {
+          type: Type.OBJECT,
+          properties: ingredientSchemaProperties,
+          required: ['name', 'calories', 'protein']
+        }
       }
     },
-    required: ['foodName', 'calories', 'protein', 'category']
+    required: ['foodName', 'category']
   }
 };
 
+const sumIngredientTotals = (ingredients) =>
+  ingredients.reduce(
+    (totals, ing) => ({
+      calories: totals.calories + Math.max(0, Number(ing.calories) || 0),
+      protein: totals.protein + Math.max(0, Number(ing.protein) || 0),
+      carbs: totals.carbs + Math.max(0, Number(ing.carbs) || 0),
+      fats: totals.fats + Math.max(0, Number(ing.fats) || 0),
+      fiber: totals.fiber + Math.max(0, Number(ing.fiber) || 0)
+    }),
+    { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 }
+  );
+
 const executeLogFoodEntry = async (userId, args) => {
-  if (!args.foodName || args.calories === undefined || args.protein === undefined) {
-    return { success: false, error: 'Missing required fields (foodName, calories, protein)' };
+  const rawIngredients = Array.isArray(args.ingredients)
+    ? args.ingredients.filter((ing) => ing && typeof ing.name === 'string' && ing.name.trim())
+    : [];
+  const hasIngredients = rawIngredients.length > 0;
+
+  let ingredients;
+  let totals = {
+    calories: Number(args.calories) || 0,
+    protein: Number(args.protein) || 0,
+    carbs: Number(args.carbs) || 0,
+    fats: Number(args.fats) || 0,
+    fiber: Number(args.fiber) || 0
+  };
+  const hasFlatNutrition = args.calories !== undefined && args.protein !== undefined;
+
+  if (hasIngredients) {
+    ingredients = rawIngredients.map((ing) => ({
+      name: String(ing.name).trim().slice(0, 200),
+      quantity: Math.max(0.1, Number(ing.quantity) || 1),
+      calories: Math.max(0, Number(ing.calories) || 0),
+      protein: Math.max(0, Number(ing.protein) || 0),
+      carbs: Math.max(0, Number(ing.carbs) || 0),
+      fats: Math.max(0, Number(ing.fats) || 0),
+      fiber: Math.max(0, Number(ing.fiber) || 0)
+    }));
+    totals = sumIngredientTotals(ingredients);
+  }
+
+  if (!args.foodName || !(hasIngredients || hasFlatNutrition)) {
+    return { success: false, error: 'Missing required fields (foodName, and either calories/protein or ingredients)' };
   }
 
   const entry = await FoodEntry.create({
     userId,
     foodName: String(args.foodName).slice(0, 200),
-    calories: Math.max(0, Number(args.calories) || 0),
-    protein: Math.max(0, Number(args.protein) || 0),
-    carbs: Math.max(0, Number(args.carbs) || 0),
-    fats: Math.max(0, Number(args.fats) || 0),
-    fiber: Math.max(0, Number(args.fiber) || 0),
+    calories: Math.max(0, totals.calories),
+    protein: Math.max(0, totals.protein),
+    carbs: Math.max(0, totals.carbs),
+    fats: Math.max(0, totals.fats),
+    fiber: Math.max(0, totals.fiber),
     sugar: Math.max(0, Number(args.sugar) || 0),
     quantity: Math.max(0.1, Number(args.quantity) || 1),
     category: ['breakfast', 'lunch', 'snacks', 'dinner'].includes(args.category) ? args.category : 'lunch',
-    date: new Date()
+    date: new Date(),
+    ingredients
   });
 
   return {
@@ -230,7 +290,8 @@ Rules:
 - Base answers on the user's actual data below when relevant. Don't invent numbers that aren't there.
 - Keep answers concise and conversational, suitable for a chat widget (a few short paragraphs or a short list at most).
 - When the user describes something they ate or drank, or sends a photo of a meal, call ${LOG_FOOD_FUNCTION} to log it with your best nutrition estimate, then briefly confirm what was logged and the estimated calories/protein. Mention the values are estimates they can edit in the Foods tab.
-- When shown a photo, identify the food(s) visible and estimate portion sizes as best you can from the image before calling ${LOG_FOOD_FUNCTION}. If the image doesn't show food, say so instead of guessing.
+- When the meal has multiple distinct items (e.g. "3 egg omelette and 2 roti", "oats with 150ml milk, 5g almonds, 5g cashews, 1 anjeer and 1 walnut", "sabji and 3 roti"), populate \`ingredients\` with one entry per item instead of a single lumped total — this gives the user a readable breakdown they can edit later. Use a short, clear overall \`foodName\` like "Oats meal" or "Sabji with roti" for these.
+- When shown a photo, identify the food(s) visible and estimate portion sizes as best you can from the image before calling ${LOG_FOOD_FUNCTION}. If multiple foods are visible, use \`ingredients\` the same way. If the image doesn't show food, say so instead of guessing.
 - Only call ${LOG_FOOD_FUNCTION} when the user is describing or showing something they actually consumed, not when asking hypothetical questions (e.g. "how many calories are in a banana?" should NOT be logged).
 - You are not a doctor; for medical concerns, suggest consulting a professional.
 - If the data needed to answer isn't available, say so instead of guessing.
