@@ -68,7 +68,7 @@ export async function fetchNutritionData(
   try {
     // Use USDA FoodData Central API (free, no signup required for basic usage)
     // For production, get API key from https://api.data.gov/signup/
-    const API_KEY = import.meta.env.VITE_USDA_API_KEY || '';
+    const API_KEY = process.env.EXPO_PUBLIC_USDA_API_KEY || '';
 
     // USDA API works without key for limited requests, but key is recommended
     const url = `https://api.nal.usda.gov/fdc/v1/foods/search`;

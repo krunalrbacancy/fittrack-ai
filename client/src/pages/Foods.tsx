@@ -351,13 +351,15 @@ export const Foods: React.FC = () => {
       setNutritionError(null);
 
       try {
-        // Get nutrition data for the selected food (default quantity 1)
-        const nutritionData = await getNutritionForFood(foodName, 1);
+        // Determine the unit (per-100g/ml vs per-unit) first, then fetch nutrition
+        // at the matching quantity — otherwise a per100g food's returned values and
+        // its displayed quantity (100) fall out of sync (e.g. milk would show "100"
+        // but with calories computed as if quantity were 1).
+        const baseData = getBaseNutritionData(foodName);
+        const lookupQuantity = baseData?.per100g ? 100 : 1;
+        const nutritionData = await getNutritionForFood(foodName, lookupQuantity);
 
         if (nutritionData) {
-          // Get base nutrition data to determine if it's per100g
-          const baseData = getBaseNutritionData(foodName);
-
           if (baseData) {
             // Store base nutrition data
             setBaseNutritionData(baseData);
